@@ -178,7 +178,7 @@ $(LIBRARIES_PATH)/bsg_manycore.cpp: % : $(BSG_MACHINE_PATH)/notrace/V$(BSG_DESIG
 
 VERILATOR_INCLUDES += -I$(VERILATOR_ROOT)/include
 VERILATOR_INCLUDES += -I$(VERILATOR_ROOT)/include/vltstd
-VERILATOR_CXXSRCS := verilated.cpp verilated_vcd_c.cpp verilated_dpi.cpp
+VERILATOR_CXXSRCS := verilated_threads.cpp verilated_vcd_c.cpp verilated_dpi.cpp verilated.cpp
 VERILATOR_CSRCS = 
 VERILATOR_OBJS += $(VERILATOR_CXXSRCS:%.cpp=%.o)
 VERILATOR_OBJS += $(VERILATOR_CSRCS:%.c=%.o)
@@ -186,7 +186,7 @@ VERILATOR_OBJS += $(VERILATOR_CSRCS:%.c=%.o)
 # Verilator object files (added to libmachine.so)
 VERILATOR_LIBMACHINE_OBJS = $(VERILATOR_OBJS:%.o=$(MACHINES_PATH)/%.o)
 $(MACHINES_PATH)/%.o: $(VERILATOR_ROOT)/include/%.cpp
-	g++ $(VERILATOR_INCLUDES) -DVL_PRINTF=printf -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -fPIC -std=c++11 -c -o $@ $^
+	g++ $(VERILATOR_INCLUDES) -DVL_PRINTF=printf -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 -DVL_THREADED=1 -fPIC -lpthread -pthread -std=c++11 -c -o $@ $^
 
 VCFLAGS = -fPIC
 VERILATOR_CFLAGS    += $(foreach vcf,$(VCFLAGS),-CFLAGS "$(vcf)")
@@ -196,14 +196,14 @@ VERILATOR_VFLAGS = $(VERILATOR_VINCLUDES) $(VERILATOR_VDEFINES)
 VERILATOR_VFLAGS += -Wno-lint -Wno-widthconcat -Wno-unoptflat
 %/V$(BSG_DESIGN_TOP).mk: $(VHEADERS) $(VSOURCES) 
 	$(info BSG_INFO: Running verilator)
-	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_CFLAGS) $(VERILATOR_VFLAGS) $^ --top-module $(BSG_DESIGN_TOP)
+	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_CFLAGS) $(VERILATOR_VFLAGS) $^ --top-module $(BSG_DESIGN_TOP) --threads 4
 
 %__ALL.a: %.mk
 	$(MAKE) -j -C $(dir $@) -f $(notdir $<) default
 
 %/libmachine.so: LD = $(CXX)
 %/libmachine.so: %/notrace/V$(BSG_DESIGN_TOP)__ALL.a $(VERILATOR_LIBMACHINE_OBJS)
-	$(LD) -shared -Wl,--whole-archive,-soname,$@ -o $@ $^ $(LDFLAGS) -Wl,--no-whole-archive
+	$(LD) -lpthread -pthread -shared -Wl,--whole-archive,-soname,$@ -o $@ $^ $(LDFLAGS) -Wl,--no-whole-archive
 
 .PHONY: simlibs.clean
 simlibs.clean: libraries.clean hardware.clean

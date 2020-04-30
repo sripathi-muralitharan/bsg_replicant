@@ -36,7 +36,7 @@
 #include <cstdint>
 #include <xmmintrin.h>
 #include <bsg_mem_dma.hpp>
-#include <verilated.h>
+#include <verilated_threads.h>
 #include <verilated_vcd_c.h>
 #include <svdpi.h>
 #include <bsg_nonsynth_dpi_errno.hpp>

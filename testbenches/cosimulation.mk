@@ -52,8 +52,8 @@ endif
 INCLUDES   += -I$(LIBRARIES_PATH) 
 
 # CSOURCES/HEADERS should probably go in some regression file list.
-CDEFINES   += -DCOSIM
-CXXDEFINES += -DCOSIM
+CDEFINES   += -DCOSIM -DVL_THREADED=1
+CXXDEFINES += -DCOSIM -DVL_THREADED=1
 CXXFLAGS   += -lstdc++
 
 include $(REGRESSION_PATH)/compilation.mk
