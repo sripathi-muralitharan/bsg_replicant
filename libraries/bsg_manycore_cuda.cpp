@@ -1495,6 +1495,7 @@ static int hb_mc_device_wait_for_tile_group_finish_any(hb_mc_device_t *device) {
 /**
  * Iterates over all tile groups inside device, allocates those that fit in mesh and launches them. 
  * API remains in this function until all tile groups have successfully finished execution.
+ * Number of tile groups is reset to zero after all tile groups are executed.
  * @param[in]  device        Pointer to device
  * @return HB_MC_SUCCESS if succesful. Otherwise an error code is returned.
  */
@@ -1526,6 +1527,18 @@ int hb_mc_device_tile_groups_execute (hb_mc_device_t *device) {
                 }
 
         }
+
+        // Reset number of tile groups to zero
+        // Reset the device's tile group capacity to 1
+        // Readjust the space needed for device's tile groups
+        device->num_tile_groups = 0;
+        device->tile_group_capacity = 1;
+        device->tile_groups = (hb_mc_tile_group_t *) realloc (device->tile_groups, device->tile_group_capacity * sizeof(hb_mc_tile_group_t));
+        if (device->tile_groups == NULL) {
+                bsg_pr_err("%s: failed to reset the space for hb_mc_tile_group_t structs.\n", __func__);
+                return HB_MC_NOMEM;
+        }
+
 
         return HB_MC_SUCCESS;
 }
