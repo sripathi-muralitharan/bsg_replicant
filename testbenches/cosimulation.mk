@@ -128,7 +128,7 @@ $(REGRESSION_TESTS:%=.%/vanilla_stats.csv): .%/vanilla_stats.csv : %.rule
 .%/vanilla_stats.csv:
 	mkdir -p $(dir $@)
 	cd $(dir $@) && \
-	$< $(SIM_ARGS) $(C_ARGS) 2>&1 | tee $(LOG_NAME)
+	$ ( time $< $(SIM_ARGS) $(C_ARGS) ) 2>&1 | tee $(LOG_NAME)
 	@mv $(dir $@)/$(LOG_NAME) $(LOG_NAME)
 
 

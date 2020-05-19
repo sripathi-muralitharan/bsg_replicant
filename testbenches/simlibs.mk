@@ -196,7 +196,7 @@ VERILATOR_VFLAGS = $(VERILATOR_VINCLUDES) $(VERILATOR_VDEFINES)
 VERILATOR_VFLAGS += -Wno-lint -Wno-widthconcat -Wno-unoptflat
 %/V$(BSG_DESIGN_TOP).mk: $(VHEADERS) $(VSOURCES) 
 	$(info BSG_INFO: Running verilator)
-	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_CFLAGS) $(VERILATOR_VFLAGS) $^ --top-module $(BSG_DESIGN_TOP) --threads 4
+	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_CFLAGS) $(VERILATOR_VFLAGS) $^ --top-module $(BSG_DESIGN_TOP) --threads 16
 
 %__ALL.a: %.mk
 	$(MAKE) -j -C $(dir $@) -f $(notdir $<) default
