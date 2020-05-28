@@ -78,10 +78,10 @@ int kernel_device_memcpy (int argc, char **argv) {
         /**********************************************************************/
         /* Allocate memory on the device for A & B.                           */
         /**********************************************************************/
-        uint32_t N = 64;
+        uint32_t N = 1024;
 
         hb_mc_eva_t A_device; 
-        rc = hb_mc_device_malloc(&device, N * sizeof(uint32_t), &A_device);
+        rc = hb_mc_device_malloc(&device, N * sizeof(uint8_t), &A_device);
         if (rc != HB_MC_SUCCESS) { 
                 bsg_pr_err("failed to allocate memory on device.\n");
                 return rc;
@@ -89,7 +89,7 @@ int kernel_device_memcpy (int argc, char **argv) {
 
 
         hb_mc_eva_t B_device; 
-        rc = hb_mc_device_malloc(&device, N * sizeof(uint32_t), &B_device);
+        rc = hb_mc_device_malloc(&device, N * sizeof(uint8_t), &B_device);
         if (rc != HB_MC_SUCCESS) { 
                 bsg_pr_err("failed to allocate memory on device.\n");
                 return rc;
@@ -101,17 +101,17 @@ int kernel_device_memcpy (int argc, char **argv) {
         /* Fill A with random values and set B to -1 on the host.             */
         /* Copy A from host to device DRAM and set B to 0 on device DRAM.     */
         /**********************************************************************/
-        uint32_t A_host[N];
-        uint32_t B_host[N];
+        uint8_t A_host[N];
+        uint8_t B_host[N];
         for (int i = 0; i < N; i++) { /* fill A with arbitrary data */
-                A_host[i] = rand() & 0xFFFF;
+                A_host[i] = rand() & 0xFF;
                 B_host[i] = -1;
         }
 
         // Copy A from host to device
         void *dst = (void *) ((intptr_t) A_device);
         void *src = (void *) &A_host[0];
-        rc = hb_mc_device_memcpy (&device, dst, src, N * sizeof(uint32_t), HB_MC_MEMCPY_TO_DEVICE);
+        rc = hb_mc_device_memcpy (&device, dst, src, N * sizeof(uint8_t), HB_MC_MEMCPY_TO_DEVICE);
         if (rc != HB_MC_SUCCESS) { 
                 bsg_pr_err("failed to copy memory to device.\n");
                 return rc;
@@ -169,7 +169,7 @@ int kernel_device_memcpy (int argc, char **argv) {
         /**********************************************************************/
         src = (void *) ((intptr_t) B_device);
         dst = (void *) &B_host;
-        rc = hb_mc_device_memcpy (&device, (void *) dst, src, N * sizeof(uint32_t), HB_MC_MEMCPY_TO_HOST);
+        rc = hb_mc_device_memcpy (&device, (void *) dst, src, N * sizeof(uint8_t), HB_MC_MEMCPY_TO_HOST);
         if (rc != HB_MC_SUCCESS) { 
                 bsg_pr_err("failed to copy memory from device.\n");
                 return rc;
@@ -189,7 +189,7 @@ int kernel_device_memcpy (int argc, char **argv) {
         int mismatch = 0; 
         for (int i = 0; i < N; i++) {
                 if (A_host[i] != B_host[i]) {
-                        bsg_pr_err(BSG_RED("Mismatch: ") "B[%d] =  0x%08" PRIx32 "\t Expected: 0x%08" PRIx32 "\n",
+                        bsg_pr_err(BSG_RED("Mismatch: ") "B[%d] =  0x%08" PRIx8 "\t Expected: 0x%08" PRIx8 "\n",
                                                          i,
                                                          B_host[i],
                                                          A_host[i]);
