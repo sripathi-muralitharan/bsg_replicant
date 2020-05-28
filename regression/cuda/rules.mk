@@ -47,6 +47,9 @@ $(USER_CLEAN_RULES):
 	BSG_MACHINE_PATH=$(BSG_MACHINE_PATH) \
 	$(MAKE) -j1 -C $(CUDALITE_SRC_PATH)/$(subst .clean,,$(subst test_,,$@)) clean
 
+ifdef CLANG
+$(CUDALITE_SRC_PATH)/%/main.riscv: export CLANG=$(CLANG)
+endif
 $(CUDALITE_SRC_PATH)/%/main.riscv: $(BSG_MACHINE_PATH)/Makefile.machine.include .FORCE
 	CL_DIR=$(CL_DIR) \
 	BSG_MANYCORE_DIR=$(BSG_MANYCORE_DIR) \
