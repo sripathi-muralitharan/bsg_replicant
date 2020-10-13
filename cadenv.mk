@@ -48,7 +48,6 @@ endif
 ifneq ("$(wildcard $(CL_DIR)/../bsg_cadenv/cadenv.mk)","")
 include $(CL_DIR)/../bsg_cadenv/cadenv.mk
 # We use vcs-mx, so we re-define VCS_HOME in the environment
-export VCS_HOME=$(VCSMX_HOME)
 else
 $(warning $(shell echo -e "$(ORANGE)BSG MAKE WARN: Couldn't find bsg_cadenv. User must configure CAD Environment.$(NC)"))
 endif
