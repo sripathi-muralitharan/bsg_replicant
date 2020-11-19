@@ -67,8 +67,8 @@ $(LIBMACHINE_OBJECTS): INCLUDES := -I$(VERILATOR_ROOT)/include
 $(LIBMACHINE_OBJECTS): INCLUDES += -I$(VERILATOR_ROOT)/include/vltstd
 $(LIBMACHINE_OBJECTS): INCLUDES += -I$(BSG_MACHINE_PATH)
 
-$(LIBMACHINE_OBJECTS): CFLAGS    += -std=c11 -fPIC $(INCLUDES) $(DEFINES)
-$(LIBMACHINE_OBJECTS): CXXFLAGS  += -std=c++11 -fPIC $(INCLUDES) $(DEFINES)
+$(LIBMACHINE_OBJECTS): CFLAGS    += -fPIC -std=c11 $(INCLUDES) $(DEFINES) -g -pg
+$(LIBMACHINE_OBJECTS): CXXFLAGS  += -fPIC -std=c++11 $(INCLUDES) $(DEFINES) -g -pg
 $(LIBMACHINE_OBJECTS): $(MACHINES_PATH)/%.o: $(VERILATOR_ROOT)/include/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
 
@@ -83,25 +83,29 @@ $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(BSG_MACHINE_PATH)
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(BASEJUMP_STL_DIR)/bsg_test
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(VERILATOR_ROOT)/include
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(VERILATOR_ROOT)/include/vltstd
-$(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: CXXFLAGS := -std=c++11 -fPIC $(INCLUDES)
+$(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: CXXFLAGS := -fPIC -std=c++11 $(INCLUDES) -g -pg
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a
 
 # Verilator compilation is a little funky. Compiling the HDL generates
 # a Makefile fragment, <top-level-module-name>.mk and transpiled C++
 # files. This makefile fragment compiles the transpiled C++ into an
 # archive file <top-level-module-name>_ALL.a.
-VCFLAGS = -fPIC
+VCFLAGS = -fPIC -g -pg
+VLDFLAGS = -g -pg
+
 VERILATOR_CFLAGS    += $(foreach vcf,$(VCFLAGS),-CFLAGS "$(vcf)")
+VERILATOR_LDFLAGS   += $(foreach vlf,$(LDFLAGS),-LDFLAGS "$(vlf)")
 VERILATOR_VINCLUDES += $(foreach inc,$(VINCLUDES),+incdir+"$(inc)")
 VERILATOR_VDEFINES  += $(foreach def,$(VDEFINES),+define+"$(def)")
 VERILATOR_VFLAGS = $(VERILATOR_VINCLUDES) $(VERILATOR_VDEFINES)
 VERILATOR_VFLAGS += -Wno-widthconcat -Wno-unoptflat -Wno-lint
-VERILATOR_VFLAGS += --assert
+VERILATOR_VFLAGS += --assert --prof-cfuncs
+VERILATOR_FLAGS = $(VERILATOR_VFLAGS) $(VERILATOR_CFLAGS) $(VERILATOR_LDFLAGS)
 # These enable verilator tracing
 # VERILATOR_VFLAGS += --trace --trace-structs
 $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP).mk: $(VHEADERS) $(VSOURCES) 
 	$(info BSG_INFO: Running verilator)
-	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_CFLAGS) $(VERILATOR_VFLAGS) $^ --top-module $(BSG_DESIGN_TOP)
+	@$(VERILATOR) -Mdir $(dir $@) --cc $(VERILATOR_FLAGS) $^ --top-module $(BSG_DESIGN_TOP)
 
 $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a: $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP).mk
 	$(MAKE) -j -C $(dir $@) -f $(notdir $<) default
@@ -119,18 +123,24 @@ $(BSG_MACHINE_PATH)/libmachine.so: $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a
 
 # Executable compilation rules
 LDFLAGS    += -lbsg_manycore_runtime -L$(BSG_PLATFORM_PATH) -Wl,-rpath=$(BSG_PLATFORM_PATH)
-LDFLAGS    += -lmachine -L$(BSG_MACHINE_PATH) -Wl,-rpath=$(BSG_MACHINE_PATH)
+#LDFLAGS    += -lmachine -L$(BSG_MACHINE_PATH) -Wl,-rpath=$(BSG_MACHINE_PATH)
+LDFLAGS    += -L$(LIBRARIES_PATH)/features/dma/simulation -Wl,-rpath=$(LIBRARIES_PATH)/features/dma/simulation -ldmamem
 LDFLAGS    += -lm
 
 INCLUDES   += -I$(LIBRARIES_PATH)
 INCLUDES   += -I$(BSG_MACHINE_PATH)
 
-%: %.o $(BSG_MACHINE_PATH)/libmachine.so $(BSG_PLATFORM_PATH)/libbsg_manycore_runtime.so
-	g++ -std=c++11 $< -o $@ $(LDFLAGS)
+%: LD=$(CXX)
+#%: %.o $(BSG_MACHINE_PATH)/libmachine.so $(BSG_PLATFORM_PATH)/libbsg_manycore_runtime.so
+#	g++ -std=c++11 $< -o $@ $(LDFLAGS)
+
+%: %.o $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a $(BSG_PLATFORM_PATH)/libbsg_manycore_runtime.so $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o $(LIBMACHINE_OBJECTS)
+	$(LD) -g -pg -std=c++11 $(LDFLAGS) $< -o $@ $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o $(LIBMACHINE_OBJECTS) $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a
 
 # Remove the machine library files. 
 machine.clean:
 	rm -rf $(BSG_MACHINE_PATH)/libmachine.so
+	rm -rf $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a
 	rm -rf $(LIBMACHINE_OBJECTS)
 	rm -rf $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)*
 	rm -rf $(BSG_MACHINE_PATH)/notrace

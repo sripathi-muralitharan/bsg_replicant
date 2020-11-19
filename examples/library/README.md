@@ -13,3 +13,10 @@ To run all tests in an appropriately configured environment, run:
 ```make regression``` 
 
 Or, alternatively, run `make help` to see a list of available targets.
+
+
+Profiling commands:
+          sudo operf ./test_manycore_dram_read_write
+          opgprof ./test_manycore_dram_read_write
+          gprof test_manycore_dmem_read_write > gprof.out
+          ../../../verilator/bin/verilator_profcfunc gprof.out
