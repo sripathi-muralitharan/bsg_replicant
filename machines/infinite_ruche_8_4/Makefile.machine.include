@@ -28,7 +28,7 @@
 # Change these parameters to define your machine. All other parameters should remain constant.
 
 # Manycore X/Y dimensions
-BSG_MACHINE_NUM_CORES_X               = 4
+BSG_MACHINE_NUM_CORES_X               = 8
 BSG_MACHINE_NUM_CORES_Y               = 4
 
 # Heterogeneous tile composition. Must be a 1-d array equal to the
@@ -38,19 +38,18 @@ BSG_MACHINE_NUM_CORES_Y               = 4
 BSG_MACHINE_HETERO_TYPE_VEC           = default:0
 
 # Network Parameters
-BSG_MACHINE_NETWORK_CFG               = e_network_mesh
-BSG_MACHINE_RUCHE_FACTOR_X            = 0
+BSG_MACHINE_NETWORK_CFG               = e_network_half_ruche_x
+BSG_MACHINE_RUCHE_FACTOR_X            = 3
 
 # Memory System Parameters
 BSG_MACHINE_DRAM_INCLUDED             = 1
-BSG_MACHINE_MEM_CFG                   = e_vcache_blocking_axi4_f1_model
+BSG_MACHINE_MEM_CFG                   = e_infinite_mem
 
 # Victim Cache Parameters
-# AWS Specific: 
-BSG_MACHINE_VCACHE_PER_DRAM_CHANNEL   = 8
+BSG_MACHINE_VCACHE_PER_DRAM_CHANNEL   = 16
 BSG_MACHINE_VCACHE_SET                = 64
-BSG_MACHINE_VCACHE_WAY                = 8
-BSG_MACHINE_VCACHE_LINE_WORDS         = 16
+BSG_MACHINE_VCACHE_WAY                = 4
+BSG_MACHINE_VCACHE_LINE_WORDS         = 8
 BSG_MACHINE_VCACHE_STRIPE_WORDS       = $(BSG_MACHINE_VCACHE_LINE_WORDS)
 # Only applies to Non-blocking Cache
 BSG_MACHINE_VCACHE_MISS_FIFO_ELS      = 32
@@ -65,8 +64,6 @@ BSG_MACHINE_ORIGIN_COORD_Y            = 2
 BSG_MACHINE_VCACHE_DMA_DATA_WIDTH     = 32
 
 ##################### Constants and Computations #####################
-BSG_MACHINE_HETERO_TYPE_VEC           = default:0
-
 # IO flow control parameters.
 BSG_MACHINE_IO_EP_CREDITS             = 16
 BSG_MACHINE_IO_HOST_CREDITS           = $(BSG_MACHINE_IO_EP_CREDITS)
@@ -74,12 +71,8 @@ BSG_MACHINE_IO_REMOTE_LOAD_CAP        = $(BSG_MACHINE_IO_EP_CREDITS)
 
 # Computed values
 BSG_MACHINE_VCACHE_NUM               := $(shell echo $(BSG_MACHINE_NUM_CORES_X)*2 | bc)
-# Only one channel in AWS
-BSG_MACHINE_DRAM_NUM_CHANNELS        := 1
-
-# AWS F1: 2GB (all we expose)
-BSG_MACHINE_DRAM_WORDS               := $(shell echo 2^29 | bc) # 2 GB
-BSG_MACHINE_DRAM_BANK_WORDS          := $(shell echo $(BSG_MACHINE_DRAM_WORDS)/$(BSG_MACHINE_NUM_CORES_X)/2 | bc)
+# Every cache is replaced with an infinite memory channel
+BSG_MACHINE_DRAM_NUM_CHANNELS        := $(BSG_MACHINE_VCACHE_NUM)
 
 # Required for BSG Manycore
 BSG_MACHINE_GLOBAL_X                  = $(BSG_MACHINE_NUM_CORES_X)
@@ -97,4 +90,3 @@ BSG_MACHINE_NAME                     :=$(BSG_MACHINE_NAME)_$(BSG_MACHINE_MEM_CFG
 # assignment allows user to set this flag through
 # environment when required.
 BSG_MACHINE_BRANCH_TRACE_EN          ?= 0
-
