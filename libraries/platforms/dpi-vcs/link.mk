@@ -85,7 +85,7 @@ VCS_VFLAGS     += -timescale=1ps/1ps -sverilog -full64 -licqueue -q
 VCS_VFLAGS     += +warn=noLCA_FEATURES_ENABLED
 VCS_VFLAGS     += +warn=noMC-FCNAFTMI
 VCS_VFLAGS     += +lint=all,TFIPC-L,noSVA-UA,noSVA-NSVU,noVCDE,noSVA-AECASR
-VCS_VFLAGS     += -msg_config=$(BSG_PLATFORM_PATH)/msg_config
+VCS_VFLAGS     += -msg_config=$(BSG_PLATFORM_PATH)/msg_config -simprofile
 
 # VCS Generates an executable file by linking the %.o file with the
 # the VCS work libraries for the design, and the runtime shared libraries

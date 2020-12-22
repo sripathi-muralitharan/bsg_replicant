@@ -3,8 +3,7 @@
 
 module bsg_mux_one_hot #(parameter width_p="inv"
                          , els_p=1
-			 , harden_p=1
-                         )
+			 , harden_p=1)
    (
     input [els_p-1:0][width_p-1:0] data_i
     ,input [els_p-1:0] sel_one_hot_i
@@ -19,7 +18,7 @@ module bsg_mux_one_hot #(parameter width_p="inv"
    
      for (int i = 0; i < els_p; i++)
        begin
-          if(sel_one_hot_i[i])
+          if(sel_one_hot_i[i] === 1'b1)
             data_lo = data_i[i];
        end
    end
