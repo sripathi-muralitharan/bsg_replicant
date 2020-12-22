@@ -49,6 +49,7 @@ endif
 # SDK_DIR: Path to the SDK directory in the aws-fpga repo
 include $(BSG_F1_DIR)/hdk.mk
 
+
 # cl_manycore_pkg.v depends on f1_parameters.vh
 VSOURCES += $(LIBRARIES_PATH)/platforms/aws-fpga/hardware/cl_manycore_pkg.v
 ################################################################################
@@ -138,3 +139,8 @@ VSOURCES += $(LIBRARIES_PATH)/platforms/dpi-verilator/hardware/dpi_top.sv
 
 VINCLUDES += $(BSG_PLATFORM_PATH)/hardware
 VINCLUDES += $(BSG_PLATFORM_PATH)
+
+VSOURCES := $(filter-out VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_encode_one_hot.v,$(VSOURCES))
+VSOURCES := $(filter-out VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_mux_one_hot.v,$(VSOURCES))
+VSOURCES += $(LIBRARIES_PATH)/platforms/dpi-verilator/hardware/bsg_nonsynth_encode_one_hot.v
+VSOURCES += $(LIBRARIES_PATH)/platforms/dpi-verilator/hardware/bsg_nonsynth_mux_one_hot.v
