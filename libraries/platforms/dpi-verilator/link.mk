@@ -59,14 +59,14 @@ include $(LIBRARIES_PATH)/libraries.mk
 LIBMACHINE_CXXSRCS += verilated_vcd_c.cpp
 LIBMACHINE_CXXSRCS += verilated.cpp
 LIBMACHINE_CXXSRCS += verilated_dpi.cpp
-# LIBMACHINE_CXXSRCS += verilated_threads.cpp 
+LIBMACHINE_CXXSRCS += verilated_threads.cpp 
 LIBMACHINE_OBJS += $(LIBMACHINE_CXXSRCS:%.cpp=%.o)
 LIBMACHINE_OBJECTS = $(LIBMACHINE_OBJS:%.o=$(MACHINES_PATH)/%.o)
 
 $(LIBMACHINE_OBJECTS): DEFINES := -DVL_PRINTF=printf
 $(LIBMACHINE_OBJECTS): DEFINES += -DVM_SC=0
 $(LIBMACHINE_OBJECTS): DEFINES += -DVM_TRACE=0
-#$(LIBMACHINE_OBJECTS): DEFINES += -DVL_THREADED=1
+$(LIBMACHINE_OBJECTS): DEFINES += -DVL_THREADED=1
 $(LIBMACHINE_OBJECTS): INCLUDES := -I$(VERILATOR_ROOT)/include
 $(LIBMACHINE_OBJECTS): INCLUDES += -I$(VERILATOR_ROOT)/include/vltstd
 $(LIBMACHINE_OBJECTS): INCLUDES += -I$(BSG_MACHINE_PATH)
@@ -87,7 +87,7 @@ $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(BSG_MACHINE_PATH)
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(BASEJUMP_STL_DIR)/bsg_test
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(VERILATOR_ROOT)/include
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: INCLUDES += -I$(VERILATOR_ROOT)/include/vltstd
-#$(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: DEFINES  += -DVL_THREADED
+$(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: DEFINES  += -DVL_THREADED
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: CXXFLAGS := -fPIC -std=c++11 $(INCLUDES) #-g -pg
 $(BSG_PLATFORM_PATH)/bsg_manycore_simulator.o: $(BSG_MACHINE_PATH)/V$(BSG_DESIGN_TOP)__ALL.a
 
@@ -104,7 +104,9 @@ VERILATOR_VINCLUDES += $(foreach inc,$(VINCLUDES),+incdir+"$(inc)")
 VERILATOR_VDEFINES  += $(foreach def,$(VDEFINES),+define+"$(def)")
 VERILATOR_VFLAGS = $(VERILATOR_VINCLUDES) $(VERILATOR_VDEFINES)
 VERILATOR_VFLAGS += -Wno-widthconcat -Wno-unoptflat -Wno-lint
-VERILATOR_VFLAGS += --noassert -O3 #--prof-cfuncs
+VERILATOR_VFLAGS += --noassert -O3
+#VERILATOR_VFLAGS += --prof-cfuncs
+VERILATOR_VFLAGS += --threads 4
 VERILATOR_FLAGS = $(VERILATOR_VFLAGS) $(VERILATOR_CFLAGS) $(VERILATOR_LDFLAGS)
 # These enable verilator tracing
 # VERILATOR_VFLAGS += --trace --trace-structs
@@ -132,6 +134,8 @@ LDFLAGS    += -L$(LIBRARIES_PATH)/features/dma/simulation -Wl,-rpath=$(LIBRARIES
 #LDFLAGS    += -lmachine -L$(BSG_MACHINE_PATH) -Wl,-rpath=$(BSG_MACHINE_PATH)
 LDFLAGS    += -L$(LIBRARIES_PATH)/features/dma/simulation -Wl,-rpath=$(LIBRARIES_PATH)/features/dma/simulation -ldmamem
 LDFLAGS    += -lm
+LDFLAGS    += -lpthread
+
 
 INCLUDES   += -I$(LIBRARIES_PATH)
 INCLUDES   += -I$(BSG_MACHINE_PATH)
