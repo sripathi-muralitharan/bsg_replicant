@@ -183,7 +183,7 @@ module manycore_tb_top
        ,.rom_els_p(bsg_machine_rom_els_gp)
        ,.rom_width_p(bsg_machine_rom_width_gp)
        ,.rom_arr_p(bsg_machine_rom_arr_gp)
-       ,.max_out_credits_p(bsg_machine_io_credits_max)
+       ,.max_out_credits_p(bsg_machine_io_credits_max_gp)
        )
    mc_dpi
      (.clk_i(io_clk)
@@ -907,6 +907,7 @@ module manycore_tb_top
           $display("BSG COSIM PASS: Test passed!");
       $finish;
    end
+
 `endif
 
 endmodule
