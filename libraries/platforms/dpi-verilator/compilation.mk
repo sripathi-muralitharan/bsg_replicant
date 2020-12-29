@@ -31,8 +31,11 @@
 INCLUDES   += -I$(LIBRARIES_PATH)
 INCLUDES   += -I$(BSG_MACHINE_PATH)
 
-CXXFLAGS   += -lstdc++ $(INCLUDES) $(DEFINES) -g -pg
-CFLAGS     += $(INCLUDES) $(DEFINES) -g -pg
-LDFLAGS    += -g -pg
+CXXFLAGS   += -lstdc++ $(INCLUDES) $(DEFINES)
+CFLAGS     += $(INCLUDES) $(DEFINES)
+# Uncomment to enable Verilator profiling with operf
+# CXXFLAGS   += -g -pg
+# CFLAGS     += -g -pg
+# LDFLAGS    += -g -pg
 
 include $(LIBRARIES_PATH)/platforms/aws-fpga/compilation.mk

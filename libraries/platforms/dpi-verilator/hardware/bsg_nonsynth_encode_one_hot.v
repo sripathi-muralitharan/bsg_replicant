@@ -1,3 +1,4 @@
+// This module is a non-synthesizable replacement for bsg_encode_one_hot
 `include "bsg_defines.v"
 
 module bsg_encode_one_hot #(parameter width_p=8, parameter lo_to_hi_p=1, parameter debug_p=0)
