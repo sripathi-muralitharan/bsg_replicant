@@ -1,9 +1,9 @@
 *.o
-test_*
 !*.c
 !*.cpp
 !*.h
 !*.hpp
-.test_*
+*.tmp
+*.daidir
 vc_hdrs.h
 ucli.key
