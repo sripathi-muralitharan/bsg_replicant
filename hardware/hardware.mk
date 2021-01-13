@@ -194,7 +194,7 @@ $(BSG_MACHINE_PATH)/bsg_manycore_machine.h: $(BSG_MACHINE_PATH)/Makefile.machine
 	@echo "#define BSG_MANYCORE_MACHINE_VCACHE_BANK_SETS   \\" >> $@.temp
 	@echo "    $(BSG_MACHINE_VCACHE_SET)" >> $@.temp
 	@echo "#define BSG_MANYCORE_MACHINE_VCACHE_BLOCK_SIZE_WORDS \\"  >> $@.temp
-	@echo "    $(BSG_MACHINE_VCACHE_BLOCK_WORDS)" >> $@.temp
+	@echo "    $(BSG_MACHINE_VCACHE_LINE_WORDS)" >> $@.temp
 	@echo "#define BSG_MANYCORE_MACHINE_VCACHE_BANK_STRIPE_SIZE_WORDS \\" >> $@.temp
 	@echo "    $(BSG_MACHINE_VCACHE_STRIPE_WORDS)" >> $@.temp
 	@echo "#define BSG_MANYCORE_MACHINE_VCACHE_BANKS \\" >> $@.temp
@@ -241,6 +241,7 @@ $(BSG_MACHINE_PATH)/bsg_bladerunner_pkg.v: $(BSG_MACHINE_PATH)/bsg_bladerunner_c
 	@echo "parameter int bsg_machine_llcache_sets_gp = $(BSG_MACHINE_VCACHE_SET);" >> $@
 	@echo "parameter int bsg_machine_llcache_ways_gp = $(BSG_MACHINE_VCACHE_WAY);" >> $@
 	@echo "parameter int bsg_machine_llcache_line_words_gp = $(BSG_MACHINE_VCACHE_LINE_WORDS);" >> $@
+	@echo "parameter int bsg_machine_llcache_stripe_words_gp = $(BSG_MACHINE_VCACHE_STRIPE_WORDS);" >> $@
 	@echo "parameter int bsg_machine_llcache_miss_fifo_els_gp = $(BSG_MACHINE_VCACHE_MISS_FIFO_ELS);" >> $@
 	@echo "parameter int bsg_machine_llcache_channel_width_gp = $(BSG_MACHINE_VCACHE_DMA_DATA_WIDTH);" >> $@
 	@echo >> $@
@@ -280,6 +281,7 @@ $(BSG_MACHINE_PATH)/bsg_bladerunner_pkg.v: $(BSG_MACHINE_PATH)/bsg_bladerunner_c
 	@echo "parameter bsg_machine_noc_y_max_gp = bsg_machine_core_y_global_max_gp + 2; // Caches on both sides" >> $@
 	@echo "parameter bsg_machine_noc_x_coord_width_gp = \`BSG_SAFE_CLOG2(bsg_machine_noc_x_max_gp);" >> $@
 	@echo "parameter bsg_machine_noc_y_coord_width_gp = \`BSG_SAFE_CLOG2(bsg_machine_noc_y_max_gp);" >> $@
+	@echo "parameter bsg_machine_noinst_profilers_gp = $(BSG_MACHINE_NOINST_PROFILERS);" >> $@
 	@echo >> $@
 	@echo "endpackage" >> $@
 	@echo >> $@

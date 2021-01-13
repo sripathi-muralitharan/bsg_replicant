@@ -155,12 +155,6 @@ int hb_mc_config_init(const hb_mc_config_raw_t raw[HB_MC_CONFIG_MAX],
         config->vcache_block_words  = raw[HB_MC_CONFIG_VCACHE_BLOCK_WORDS];
 
         idx = raw[HB_MC_CONFIG_VCACHE_STRIPE_WORDS];
-        if (idx < config->vcache_block_words) {
-                bsg_pr_err("%s: Invalid vcache stripe size %d: stripe size "
-                           "cannot be smaller than vcache block size %d: %s\n",
-                           __func__, idx, config->vcache_block_words, error_init_help);
-                return HB_MC_INVALID;
-        }
         config->vcache_stripe_words = idx;
 
 
