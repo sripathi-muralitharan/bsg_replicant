@@ -25,7 +25,9 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "test_rom.h"
+#include <bsg_manycore.h>
+#include <bsg_manycore_machine.h>
+#include <cl_manycore_regression.h>
 #include <inttypes.h>
 
 int test_rom (int argc, char **argv) {
@@ -34,7 +36,7 @@ int test_rom (int argc, char **argv) {
         uint32_t vcache_assoc, vcache_sets, vcache_block_words;
         uint32_t vcache_assoc_expect_max = 32;
         uint32_t vcache_sets_expect = BSG_MANYCORE_MACHINE_VCACHE_BANK_SETS;
-        uint32_t major_version_max = 4; uint32_t minor_version_max = 10, minor_version_min = 0;
+        uint32_t minor_version_max = 10, minor_version_min = 0;
         size_t dram_size = 0, dram_bank_size = 0;
         uint32_t n_dram_co = 0;
         hb_mc_dimension_t dim;
@@ -42,8 +44,7 @@ int test_rom (int argc, char **argv) {
         const hb_mc_config_t *config;
         hb_mc_manycore_t mc = {0};
         hb_mc_memsys_id_t memsysid;
-        char *path;
-        struct arguments_none args = {NULL};
+        struct arguments_none args = {};
 
         rc = argp_parse (&argp_none, argc, argv, 0, 0, &args);
 
@@ -222,14 +223,13 @@ int test_rom (int argc, char **argv) {
                          hb_mc_memsys_id_to_string(memsysid));
 
         if (!(dram_bank_size == (dram_size/n_dram_co))) {
-                bsg_pr_test_err("Failed: DRAM size = %" PRIu32 " bytes, "
-                                "DRAM bank size = %" PRIu32 " bytes, "
+                bsg_pr_test_err("Failed: DRAM size = %" PRIu64 " bytes, "
+                                "DRAM bank size = %" PRIu64 " bytes, "
                                 "DRAM coordinates = %" PRIu32 "\n",
                                 dram_size, dram_bank_size, n_dram_co);
                 fail = 1;
         }
 
-cleanup:
         rc = hb_mc_manycore_exit(&mc);
 
         return fail ? HB_MC_FAIL : HB_MC_SUCCESS;

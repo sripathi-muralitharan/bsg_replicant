@@ -38,14 +38,14 @@ NC=\033[0m
 
 .PRECIOUS: %.o
 
-# each regression target needs to build its .o from a .c and .h of the
+# each regression target needs to build its .o from a .c of the
 # same name
-%.o: %.c %.h
-	$(CC) -c -o $@ $< $(INCLUDES) $(CFLAGS) $(CDEFINES) -DBSG_TEST_NAME=$(patsubst %.c,%,$<) 
+%.o: %.c
+	$(CC) -c -o $@ $< $(INCLUDES) $(CFLAGS) $(DEFINES) -DBSG_TEST_NAME=$(patsubst %.c,%,$<) 
 
-# ... or a .cpp and .hpp of the same name
-%.o: %.cpp %.hpp
-	$(CXX) -c -o $@ $< $(INCLUDES) $(CXXFLAGS) $(CXXDEFINES) -DBSG_TEST_NAME=$(patsubst %.cpp,%,$<) 
+# ... or a .cpp of the same name
+%.o: %.cpp
+	$(CXX) -c -o $@ $< $(INCLUDES) $(CXXFLAGS) $(DEFINES) -DBSG_TEST_NAME=$(patsubst %.cpp,%,$<) 
 
 .PHONY: platform.compilation.clean
 platform.compilation.clean:
