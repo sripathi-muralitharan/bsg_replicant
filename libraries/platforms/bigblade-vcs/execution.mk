@@ -34,17 +34,16 @@
 # simulations have the same starting seed.
 SIM_ARGS += +ntb_random_seed_automatic 
 
-# These are the execution rules for the binaries. We define TEST_NAME so that it
-# can be used in C_ARGS, and LOG_NAME so that we can write a log. If a waveform
-# is being generated, then it writes to <test_name>.debug.log, otherwise
-# <test_name>.log. Finally, depend on <test_name>.rule so that we rebuild the
-# RISC-V binaries.
+# These are the execution rules for the binaries. We can't pass
+# C-style arguments through the command line, so instead we specify
+# them as the VCS plusarg argument +c_args. Users can specify C-style
+# arguments using the C_ARGS make variable.
 
 %.log: %
 	./$< $(SIM_ARGS) +c_args=$(C_ARGS) -l $@
 
 %.vpd: %.debug
-	./$< $(SIM_ARGS) +c_args=$(C_ARGS) -l $(@:.vpd=.log) +vpdfile+$@
+	./$< $(SIM_ARGS) +c_args=$(C_ARGS) -l $(@:.vpd=.debug.log) +vpdfile+$@
 
 %.dve: %.vpd
 	$(DVE) -full64 -vpd $< &
@@ -54,14 +53,13 @@ SIM_ARGS += +ntb_random_seed_automatic
 
 .PHONY: platform.execution.clean %.log %.vpd
 platform.execution.clean:
-	rm -rf vanilla_stats.csv *.vanilla_stats.csv
-	rm -rf infinite_mem_stats.csv *.infinite_mem_stats.csv
-	rm -rf vcache_stats.csv *.vcache_stats.csv
-	rm -rf vanilla_operation_trace.csv *.vanilla_operation_trace.csv
-	rm -rf operation_trace.csv *.operation_trace.csv
-	rm -rf vcache_operation_trace.csv *.vcache_operation_trace.csv
-	rm -rf vanilla.log *.vanilla.log
+	rm -rf vanilla_stats.csv
+	rm -rf infinite_mem_stats.csv
+	rm -rf vcache_stats.csv
+	rm -rf vanilla_operation_trace.csv
+	rm -rf operation_trace.csv
+	rm -rf vcache_operation_trace.csv
+	rm -rf vanilla.log
 	rm -rf *.vpd
-	rm -rf .test*
 
 execution.clean: platform.execution.clean
