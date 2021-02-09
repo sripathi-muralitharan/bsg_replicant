@@ -1184,6 +1184,8 @@ void bsg_dpi_tile_init(uint32_t num_tiles_y_p,
                        my_x_i,
                        my_y_i);
 
+        BsgDpiTile::key_t k = BsgDpiTile::get_key({.x=my_x_i, .y=my_y_i});
+        BsgDpiTile *t = BsgDpiTile::get_tile(k);
         bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s\n",
                    my_x_i, my_y_i, t->get_cycle(), __func__);
 }

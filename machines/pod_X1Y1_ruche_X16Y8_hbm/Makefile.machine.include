@@ -44,7 +44,7 @@ BSG_MACHINE_PODS_Y                    = 1
 # number of tiles, or shorthand (default:0)
 # 0 is for Vanilla Core (RV32).
 # Anything else should be described here :)
-BSG_MACHINE_HETERO_TYPE_VEC           = default:0
+BSG_MACHINE_HETERO_TYPE_VEC           = default:9
 
 # Network Parameters
 BSG_MACHINE_NETWORK_CFG               = e_network_half_ruche_x

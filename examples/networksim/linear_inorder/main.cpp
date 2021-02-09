@@ -26,7 +26,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
-
+#define DEBUG
 #include <bsg_manycore.h>
 #include <bsg_manycore_npa.h>
 #include <bsg_manycore_tile.h>
