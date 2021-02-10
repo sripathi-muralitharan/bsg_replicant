@@ -59,7 +59,9 @@ module replicant_tb_top
    localparam bsg_machine_wh_cid_width_lp = `BSG_SAFE_CLOG2(bsg_machine_wh_ruche_factor_lp*2);
    localparam bsg_machine_wh_len_width_lp = `BSG_SAFE_CLOG2(1 + ((bsg_machine_llcache_line_words_gp * bsg_machine_llcache_data_width_lp) / bsg_machine_llcache_channel_width_gp));
    localparam bsg_machine_wh_coord_width_lp = bsg_machine_noc_coord_x_width_gp;
-   localparam bsg_machine_enable_profiling_lp = 1;
+   localparam bsg_machine_enable_vcore_profiling_lp = 0;
+   localparam bsg_machine_enable_cache_profiling_lp = 1;
+   localparam bsg_machine_enable_router_profiling_lp = 1;
 
    // Clock generator period
    localparam lc_cycle_time_ps_lp = 1000;
@@ -181,7 +183,10 @@ module replicant_tb_top
 
        ,.bsg_manycore_mem_cfg_p(bsg_machine_dram_cfg_gp)
        ,.bsg_dram_size_p(bsg_machine_dram_words_gp)
-       ,.enable_profiling_p(bsg_machine_enable_profiling_lp)
+       ,.enable_vcore_profiling_p(bsg_machine_enable_vcore_profiling_lp)
+       ,.enable_cache_profiling_p(bsg_machine_enable_cache_profiling_lp)
+       ,.enable_router_profiling_p(bsg_machine_enable_router_profiling_lp)
+       ,.hetero_type_vec_p(bsg_machine_hetero_type_vec_gp)
 
        ,.reset_depth_p(reset_depth_lp)
        )

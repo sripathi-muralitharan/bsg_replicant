@@ -7,6 +7,7 @@
 #include <bsg_manycore_tile.h>
 #include <bsg_manycore_packet.h>
 
+#include <typeinfo>
 #include <iostream>
 #include <fstream>
 #include <map>
@@ -16,6 +17,11 @@
 #include <utility>
 #include <unistd.h>
 
+
+typedef enum __bsg_dpi_tile_packet_op_t {
+        DPI_PACKET_OP_REMOTE_LOAD    = 0,
+        DPI_PACKET_OP_REMOTE_STORE   = 1,
+} dpi_packet_op_t;
 
 class BsgDpiTile{
 public:
@@ -98,8 +104,8 @@ public:
                 barrier.store(false);
 
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
-                           "Initialization",
-                           __func__, me.x, me.y, get_cycle());
+                           "Initialization\n",
+                           me.x, me.y, get_cycle(), __func__);
 
                 // Create a set with available request IDs
                 for(reg_id_t id = 0; id < max_reg_id; ++id){
@@ -111,7 +117,8 @@ public:
 
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s:"
                            " %lu IDs available\n",
-                           me.x, me.y, get_cycle(), ids_available.size());
+                           me.x, me.y, get_cycle(), __func__,
+                           ids_available.size());
 
                 // Initialize manycore, configuration, and eva_map
                 // structs reuse EVA to NPA translation.
@@ -218,7 +225,7 @@ public:
                 // 1: Transmit one request per cycle (if the interface is ready)
 
                 if(network_req_credits_i == 0 && !finished & !frozen){
-                        bsg_pr_info("Tile (X:%d,Y:%d) @ %lu -- %s:"
+                        bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s:"
                                     "Endpoint out of credits.\n",
                                    me.x, me.y, get_cycle(), __func__);
                         stats["No Credits"] ++;
@@ -431,8 +438,9 @@ private:
                 int my_cur_id = cur_id.load();
                 bool my_barrier = barrier.load();
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
-                           "Barrier Barrier_Id %d (CUR_ID: %d)\n",
-                           me.x, me.y, get_cycle(), __func__, barrier_id, my_cur_id);
+                           "Origin: %d Barrier Barrier_Id %d (CUR_ID: %d)\n",
+                           me.x, me.y, get_cycle(), __func__,
+                           is_origin(), barrier_id, my_cur_id);
                 if(my_cur_id > barrier_id){
                         return false;
                 } else if((my_cur_id == barrier_id) && is_origin() && my_barrier) {
@@ -462,7 +470,7 @@ private:
                         send_request(req_v_o, req_o);
                 } else {
                         stats["No RegIDs"] ++;
-                        bsg_pr_info("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                        bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
                                    "Out of request ids\n",
                                     me.x, me.y, get_cycle(), __func__);
                 }
@@ -610,36 +618,49 @@ private:
         }
 
         void execute_request_read(void *buf, size_t base, hb_mc_epa_t epa,
-                                  hb_mc_packet_mask_t mask, uint32_t *data){
+                                  hb_mc_request_packet_load_info_t info, uint32_t *data){
+
                 size_t offset = OFFSET_FROM_BASE_AND_EPA(base, epa);
-                execute_request_read(buf, offset, mask, data);
+                execute_request_read(buf, offset, info, data);
         }
 
         void execute_request_read(void *buf,
                                   size_t offset,
-                                  hb_mc_packet_mask_t mask,
+                                  hb_mc_request_packet_load_info_t info,
                                   uint32_t *data){
                 char *p;
-                p = get_ptr(buf, offset, mask);
+                if(info.is_hex_op && info.is_byte_op){
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Read request cannot have hex AND byte set.\n",
+                                   me.x, me.y, get_cycle(), __func__);
+                        exit(1);
+                }
 
-                switch(mask){
-                case(HB_MC_PACKET_REQUEST_MASK_WORD):
+                size_t sz =
+                        4 * (!info.is_byte_op && !info.is_hex_op) + // Word op
+                        2 * (info.is_hex_op > 0) + // Half op
+                        1 * (info.is_byte_op > 0); // byte op
+                offset += info.part_sel;
+                if(offset % sz){
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Read request unaligned. Address: %lx, Size: %lu\n",
+                                   me.x, me.y, get_cycle(), __func__,
+                                   offset, sz);
+                        exit(1);
+                }
+
+                p = get_ptr(buf, offset, HB_MC_PACKET_REQUEST_MASK_BYTE_0);
+
+                switch(sz){
+                case(sizeof(uint32_t)):
                         *data = *reinterpret_cast<uint32_t *>(p);
                         break;
-                case(HB_MC_PACKET_REQUEST_MASK_SHORT_0):
-                case(HB_MC_PACKET_REQUEST_MASK_SHORT_1):
+                case(sizeof(uint16_t)):
                         *data = *reinterpret_cast<uint16_t *>(p);
-                break;
-                case(HB_MC_PACKET_REQUEST_MASK_BYTE_0):
-                case(HB_MC_PACKET_REQUEST_MASK_BYTE_1):
-                case(HB_MC_PACKET_REQUEST_MASK_BYTE_2):
-                case(HB_MC_PACKET_REQUEST_MASK_BYTE_3):
+                        break;
+                case(sizeof(uint8_t)):
                         *data = *reinterpret_cast<uint8_t *>(p);
-                break;
-                default:
-                        bsg_pr_warn("Tile (X:%d,Y:%d) @ %lu -- %s: "
-                                    "Invalid mask value.\n",
-                                    me.x, me.y, get_cycle(), __func__);
+                        break;
                 }
         }
 
@@ -683,8 +704,8 @@ private:
                         break;
                 default:
                         bsg_pr_warn("Tile (X:%d,Y:%d) @ %lu -- %s: "
-                                    "Invalid mask value.\n",
-                                    me.x, me.y, get_cycle(), __func__);
+                                    "Invalid mask value. Mask: %x\n",
+                                    me.x, me.y, get_cycle(), __func__, mask);
                 }
         }
 
@@ -708,8 +729,9 @@ private:
                         return (p + offset + 3 *sizeof(uint8_t));
                 default:
                         bsg_pr_warn("Tile (X:%d,Y:%d) @ %lu -- %s: "
-                                    "Invalid mask value.\n",
-                                    me.x, me.y, get_cycle(), __func__);
+                                    "Invalid mask value. Mask: %x\n",
+                                    me.x, me.y, get_cycle(), __func__,
+                                    mask);
                         return p;
                 }
         }
@@ -721,7 +743,6 @@ private:
 
                 hb_mc_packet_op_t op = static_cast<hb_mc_packet_op_t>(hb_mc_request_packet_get_op(req));
                 hb_mc_epa_t epa = hb_mc_request_packet_get_epa(req);
-                hb_mc_packet_mask_t mask = static_cast<hb_mc_packet_mask_t>(hb_mc_request_packet_get_mask(req));
 
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
                            "%s\n",
@@ -730,12 +751,15 @@ private:
 
                 uint32_t data;
                 if ((op == HB_MC_PACKET_OP_REMOTE_LOAD)){
-                        execute_request_read(buf, base, epa, mask, &data);
+                        execute_request_read(buf, base, epa, hb_mc_request_packet_get_load_info(req), &data);
                         hb_mc_response_packet_set_data(rsp, data);
-                } else if ((op == HB_MC_PACKET_OP_REMOTE_STORE)){
+                } else if ((op == HB_MC_PACKET_OP_REMOTE_STORE) ||
+                           (op == HB_MC_PACKET_OP_REMOTE_SW)){
+                        hb_mc_packet_mask_t mask = static_cast<hb_mc_packet_mask_t>(hb_mc_request_packet_get_mask(req));
                         data = hb_mc_request_packet_get_data(req);
                         execute_request_write(buf, base, epa, mask, data);
                 } else {
+                        // All others unsupported
                         bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
                                    "Invalid Op. Packet: %s\n",
                                    me.x, me.y, get_cycle(), __func__,
@@ -746,6 +770,7 @@ private:
 
         void execute_request_icache(const hb_mc_request_packet_t *req,
                                     hb_mc_response_packet_t *rsp){
+                // TODO: Fix
                 hb_mc_packet_op_t op = static_cast<hb_mc_packet_op_t>(hb_mc_request_packet_get_op(req));
                 hb_mc_packet_mask_t mask = static_cast<hb_mc_packet_mask_t>(hb_mc_request_packet_get_mask(req));
 
@@ -755,6 +780,7 @@ private:
                            hb_mc_request_packet_to_string(req, sbuf, sizeof(sbuf)));
 
                 // Only word-level operations are supported
+                // TODO: Fix
                 if(mask != HB_MC_PACKET_REQUEST_MASK_WORD){
                         bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
                                    "Invalid Mask. Only supports word-level operations. Packet: %s\n",
@@ -789,6 +815,7 @@ private:
 
                 hb_mc_epa_t addr = hb_mc_request_packet_get_epa(req);
                 uint32_t data = hb_mc_request_packet_get_data(req);
+                // TODO: Fix
                 hb_mc_packet_op_t op = static_cast<hb_mc_packet_op_t>(hb_mc_request_packet_get_op(req));
 
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
@@ -905,18 +932,18 @@ private:
 
         template<typename T>
         bool get_packet_from_npa(hb_mc_request_packet_t *req, hb_mc_npa_t *npa, reg_id_t id){
-                return get_packet_from_npa<T>(req, npa, 0, id, HB_MC_PACKET_OP_REMOTE_LOAD);
+                return get_packet_from_npa<T>(req, npa, 0, id, DPI_PACKET_OP_REMOTE_LOAD);
         }
 
         template<typename T>
         bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr){
                 reg_id_t id = get_available_id();
-                return get_packet_from_eva<T>(req, addr, 0, id, HB_MC_PACKET_OP_REMOTE_LOAD);
+                return get_packet_from_eva<T>(req, addr, 0, id, DPI_PACKET_OP_REMOTE_LOAD);
         }
 
         template<typename T>
         bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr, reg_id_t id){
-                return get_packet_from_eva<T>(req, addr, 0, id, HB_MC_PACKET_OP_REMOTE_LOAD);
+                return get_packet_from_eva<T>(req, addr, 0, id, DPI_PACKET_OP_REMOTE_LOAD);
         }
 
         // Write Call Chain
@@ -969,23 +996,23 @@ private:
 
         template<typename T>
         bool get_packet_from_npa(hb_mc_request_packet_t *req, hb_mc_npa_t *npa, T data, reg_id_t id){
-                return get_packet_from_npa<T>(req, npa, data, id, HB_MC_PACKET_OP_REMOTE_STORE);
+                return get_packet_from_npa<T>(req, npa, data, id, DPI_PACKET_OP_REMOTE_STORE);
         }
 
         template<typename T>
         bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr, T data){
                 reg_id_t id = get_available_id();
-                return get_packet_from_eva<T>(req, addr, data, id, HB_MC_PACKET_OP_REMOTE_STORE);
+                return get_packet_from_eva<T>(req, addr, data, id, DPI_PACKET_OP_REMOTE_STORE);
         }
 
         template<typename T>
         bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr, T data, reg_id_t id){
-                return get_packet_from_eva<T>(req, addr, data, id, HB_MC_PACKET_OP_REMOTE_STORE);
+                return get_packet_from_eva<T>(req, addr, data, id, DPI_PACKET_OP_REMOTE_STORE);
         }
 
         // Merge call chains
         template<typename T>
-        bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr, T data, reg_id_t id, hb_mc_packet_op_t op){
+        bool get_packet_from_eva(hb_mc_request_packet_t *req, hb_mc_eva_t addr, T data, reg_id_t id, dpi_packet_op_t op){
                 static_assert(std::is_integral<T>::value, "Invalid type. get_packet_from_eva only supports integral types (char, short, int, etc)\n");
 
                 hb_mc_npa_t npa;
@@ -1001,7 +1028,7 @@ private:
         }
 
         template <typename T>
-        bool get_packet_from_npa(hb_mc_request_packet_t *req, hb_mc_npa_t *npa, T _data, reg_id_t id, hb_mc_packet_op_t op){
+        bool get_packet_from_npa(hb_mc_request_packet_t *req, hb_mc_npa_t *npa, T _data, reg_id_t id, dpi_packet_op_t op){
                 hb_mc_epa_t epa = hb_mc_npa_get_epa(npa);
                 uint8_t shift = epa & 0x3, sz = sizeof(T);
                 hb_mc_packet_mask_t mask;
@@ -1039,7 +1066,63 @@ private:
                 mask = static_cast<hb_mc_packet_mask_t>(mask << shift);
                 data = (data << shift);
 
-                return get_packet_from_npa(req, npa, data, id, op, mask);
+                return get_packet_from_npa<T>(req, npa, data, id, op, mask);
+        }
+
+        template <typename T>
+        bool get_packet_from_npa(hb_mc_request_packet_t *req, hb_mc_npa_t *npa, uint32_t data, reg_id_t id, dpi_packet_op_t dpi_op, hb_mc_packet_mask_t mask){
+                // Default to remote load
+                hb_mc_packet_op_t mc_op = HB_MC_PACKET_OP_REMOTE_LOAD;
+                uint8_t sz = sizeof(T);                
+                if(sz > sizeof(int)){
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Invalid datatype for request. "
+                                   "%s\n",
+                                   me.x, me.y, get_cycle(), __func__,
+                                   typeid(T).name());
+                        exit(1);
+                }
+
+                if(dpi_op == DPI_PACKET_OP_REMOTE_STORE){
+                        switch(sz){
+                        case(sizeof(char)):
+                        case(sizeof(short)):
+                                mc_op = HB_MC_PACKET_OP_REMOTE_STORE;
+                        break;
+                        case(sizeof(int)):
+                                mc_op = HB_MC_PACKET_OP_REMOTE_SW;
+                                break;
+                        }
+                }
+                return get_packet_from_npa(req, npa, data, id, mc_op, mask);
+        }
+
+        void get_payload_encoding(uint32_t *payload, hb_mc_packet_mask_t mask, reg_id_t id){
+                switch(mask){
+                case(HB_MC_PACKET_REQUEST_MASK_BYTE_1):
+                case(HB_MC_PACKET_REQUEST_MASK_BYTE_2):
+                case(HB_MC_PACKET_REQUEST_MASK_BYTE_3):
+                case(HB_MC_PACKET_REQUEST_MASK_SHORT_1):
+                        // Store in Byte 0
+                        *payload |= id;
+                        return;
+                case(HB_MC_PACKET_REQUEST_MASK_BYTE_0):
+                        // Store in Byte 1
+                        *payload |= (id << 8);
+                        return;
+                case(HB_MC_PACKET_REQUEST_MASK_SHORT_0):
+                        // Store in Byte 2
+                        *payload |= (id << 16);
+                        return;
+                case(HB_MC_PACKET_REQUEST_MASK_WORD):
+                default:
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Invalid request to encode payload. "
+                                   "Payload: %x, Mask: %x, ID: %d\n",
+                                   me.x, me.y, get_cycle(), __func__,
+                                   *payload, mask, id);
+                        exit(1);
+                }
         }
 
         bool get_packet_from_npa(hb_mc_request_packet_t *req_o, hb_mc_npa_t *npa, uint32_t data, reg_id_t id, hb_mc_packet_op_t op, hb_mc_packet_mask_t mask){
@@ -1047,11 +1130,39 @@ private:
                 hb_mc_request_packet_set_y_dst(req_o, hb_mc_npa_get_y(npa));
                 hb_mc_request_packet_set_x_src(req_o, me.x);
                 hb_mc_request_packet_set_y_src(req_o, me.y);
-                hb_mc_request_packet_set_op(req_o, op);
-                hb_mc_request_packet_set_mask(req_o, mask);
-                hb_mc_request_packet_set_load_id(req_o, id);
                 hb_mc_request_packet_set_epa(req_o, hb_mc_npa_get_epa(npa));
-                hb_mc_request_packet_set_data(req_o, data);
+                hb_mc_request_packet_set_op(req_o, op);
+                switch(op){
+                case HB_MC_PACKET_OP_REMOTE_LOAD:
+                        hb_mc_request_packet_set_load_id(req_o, id);
+                        break;
+                case HB_MC_PACKET_OP_REMOTE_SW:
+                case HB_MC_PACKET_OP_REMOTE_AMOSWAP:
+                case HB_MC_PACKET_OP_REMOTE_AMOADD:
+                case HB_MC_PACKET_OP_REMOTE_AMOXOR:
+                case HB_MC_PACKET_OP_REMOTE_AMOAND:
+                case HB_MC_PACKET_OP_REMOTE_AMOMIN:
+                case HB_MC_PACKET_OP_REMOTE_AMOMAX:
+                case HB_MC_PACKET_OP_REMOTE_AMOMINU:
+                case HB_MC_PACKET_OP_REMOTE_AMOMAXU:
+                        // Load ID field is load ID, mask is implicit with word-level ops
+                        // Data field is not repurposed
+                        hb_mc_request_packet_set_load_id(req_o, id);
+                        hb_mc_request_packet_set_data(req_o, data);
+                        break;
+                case HB_MC_PACKET_OP_REMOTE_STORE:
+                        // load_id is mask field (hidden in API), load_id is stored in payload
+                        hb_mc_request_packet_set_mask(req_o, mask);
+                        get_payload_encoding(&data, mask, id);
+                        hb_mc_request_packet_set_data(req_o, data);
+                        break;
+                default:
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Invalid operation. Op: %x\n",
+                                   me.x, me.y, get_cycle(), __func__, op);
+                        exit(1);
+                        break;
+                }
                 return true;
         }
 
@@ -1183,11 +1294,6 @@ void bsg_dpi_tile_init(uint32_t num_tiles_y_p,
 
                        my_x_i,
                        my_y_i);
-
-        BsgDpiTile::key_t k = BsgDpiTile::get_key({.x=my_x_i, .y=my_y_i});
-        BsgDpiTile *t = BsgDpiTile::get_tile(k);
-        bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s\n",
-                   my_x_i, my_y_i, t->get_cycle(), __func__);
 }
 
 

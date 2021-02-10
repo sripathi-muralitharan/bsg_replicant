@@ -34,10 +34,11 @@ p.output_dir = p.output_dir.map({0: "0 - P (Router Output)",
                                  15: "0 - P (Router Input)"})
 
 # Map Y indicies to "Index (Type)"
-type_map = {y_i:f"{y_i} (T)" for y_i in range(2, p.y.max()+1)}
-type_map[p.y.max()+1] = f"{p.y.max()} - V"
-type_map[p.y.min()-1] = f"{p.y.min()} - V"
-type_map[1] = "1 (H)"
+ys = p.y[p.y != 0].unique()
+type_map = {y_i:f"{y_i:02d} (T)" for y_i in ys}
+type_map[ys.max()] = f"{ys.max():02d} (V)"
+type_map[ys.min()] = f"{ys.min():02d} (V)"
+type_map[0] = "00 (H)"
 p.y = p.y.map(type_map)
 
 # Create a hierarchical index

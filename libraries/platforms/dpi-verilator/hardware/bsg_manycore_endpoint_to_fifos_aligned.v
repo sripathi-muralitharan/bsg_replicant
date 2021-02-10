@@ -50,6 +50,7 @@ module bsg_manycore_endpoint_to_fifos_aligned
   , parameter max_out_credits_p = "inv"
   , parameter ep_fifo_els_p = "inv"
   , parameter link_sif_width_lp = `bsg_manycore_link_sif_width(addr_width_p,data_width_p,x_cord_width_p,y_cord_width_p)
+  , parameter debug_p = 0
 ) (
   input                                      clk_i
   ,input                                      reset_i
@@ -125,6 +126,43 @@ module bsg_manycore_endpoint_to_fifos_aligned
   logic [data_width_p-1:0] returning_data_li;
   logic                    returning_v_li;
 
+  // endpoint request to manycore
+  // -------------------------
+  assign endpoint_out_v_li = ~(out_credits_o == 0) & endpoint_req_v_i;
+  assign endpoint_req_ready_o = ~(out_credits_o == 0) & endpoint_out_ready_lo;
+
+  assign endpoint_out_packet_li.addr       = addr_width_p'(endpoint_req_li_cast.addr);
+  assign endpoint_out_packet_li.op_v2      = bsg_manycore_packet_op_e'(endpoint_req_li_cast.op_v2);
+  assign endpoint_out_packet_li.reg_id     = bsg_manycore_reg_id_width_gp'(endpoint_req_li_cast.reg_id);
+  assign endpoint_out_packet_li.src_y_cord = y_cord_width_p'(endpoint_req_li_cast.src_y_cord);
+  assign endpoint_out_packet_li.src_x_cord = x_cord_width_p'(endpoint_req_li_cast.src_x_cord);
+  assign endpoint_out_packet_li.y_cord     = y_cord_width_p'(endpoint_req_li_cast.y_cord);
+  assign endpoint_out_packet_li.x_cord     = x_cord_width_p'(endpoint_req_li_cast.x_cord);
+  assign endpoint_out_packet_li.payload.data = endpoint_req_li_cast.payload.data;
+
+  // synopsys translate_off
+  always @(posedge clk_i) begin
+    if (debug_p & endpoint_out_v_li) begin
+      $display("bsg_manycore_endpoint_to_fifos: op_v2=%d", endpoint_out_packet_li.op_v2);
+      $display("bsg_manycore_endpoint_to_fifos: addr=%h", endpoint_out_packet_li.addr);
+      $display("bsg_manycore_endpoint_to_fifos: data=%h", endpoint_out_packet_li.payload.data);
+      $display("bsg_manycore_endpoint_to_fifos: reg_id=%h", endpoint_out_packet_li.reg_id);
+      $display("bsg_manycore_endpoint_to_fifos: x_cord=%d", endpoint_out_packet_li.x_cord);
+      $display("bsg_manycore_endpoint_to_fifos: y_cord=%d", endpoint_out_packet_li.y_cord);
+      $display("bsg_manycore_endpoint_to_fifos: src_x_cord=%d", endpoint_out_packet_li.src_x_cord);
+      $display("bsg_manycore_endpoint_to_fifos: src_y_cord=%d", endpoint_out_packet_li.src_y_cord);
+    end
+  end
+
+  always @(posedge clk_i) begin
+    if (debug_p & mc_rsp_v_o & mc_rsp_ready_i) begin
+      $display("bsg_manycore_endpoint_to_fifos (response): type=%s", returned_pkt_type_r_lo.name());
+      $display("bsg_manycore_endpoint_to_fifos (response): data=%h", mc_rsp_lo_cast.data);
+      $display("bsg_manycore_endpoint_to_fifos (response): reg_id=%h", mc_rsp_lo_cast.reg_id);
+    end
+  end
+  // synopsys translate_on
+
   // manycore response to endpoint
   // -------------------------
   assign mc_rsp_v_o = returned_v_r_lo;
@@ -144,33 +182,13 @@ module bsg_manycore_endpoint_to_fifos_aligned
 
   assign mc_req_lo_cast.padding      = '0;
   assign mc_req_lo_cast.addr         = addr_width_pad_lp'(endpoint_in_addr_lo);
-  assign mc_req_lo_cast.op           = 8'(endpoint_in_we_lo);
-  assign mc_req_lo_cast.op_ex        = 8'(endpoint_in_mask_lo);
+  assign mc_req_lo_cast.op_v2        = endpoint_in_we_lo ? e_remote_store: e_remote_load;
+  assign mc_req_lo_cast.payload.data = data_width_p'(endpoint_in_data_lo);
   assign mc_req_lo_cast.src_y_cord   = y_cord_width_pad_lp'(in_src_y_cord_lo);
   assign mc_req_lo_cast.src_x_cord   = x_cord_width_pad_lp'(in_src_x_cord_lo);
   assign mc_req_lo_cast.y_cord       = y_cord_width_pad_lp'(my_y_i);
   assign mc_req_lo_cast.x_cord       = x_cord_width_pad_lp'(my_x_i);
-  always_comb begin
-     if(endpoint_in_we_lo)
-       mc_req_lo_cast.payload.data = data_width_p'(endpoint_in_data_lo);
-     else
-       mc_req_lo_cast.payload.load_info_s = data_width_p'(endpoint_in_load_info_lo);
-  end
-
-  // endpoint request to manycore
-  // -------------------------
-  assign endpoint_out_v_li = ~(out_credits_o == 0) & endpoint_req_v_i;
-  assign endpoint_req_ready_o  = ~(out_credits_o == 0) & endpoint_out_ready_lo;
-
-  assign endpoint_out_packet_li.addr       = addr_width_p'(endpoint_req_li_cast.addr);
-  assign endpoint_out_packet_li.op         = bsg_manycore_packet_op_e'(endpoint_req_li_cast.op);
-  assign endpoint_out_packet_li.op_ex      = bsg_manycore_packet_op_ex_u'(endpoint_req_li_cast.op_ex);
-  assign endpoint_out_packet_li.reg_id     = bsg_manycore_reg_id_width_gp'(endpoint_req_li_cast.reg_id);
-  assign endpoint_out_packet_li.src_y_cord = y_cord_width_p'(endpoint_req_li_cast.src_y_cord);
-  assign endpoint_out_packet_li.src_x_cord = x_cord_width_p'(endpoint_req_li_cast.src_x_cord);
-  assign endpoint_out_packet_li.y_cord     = y_cord_width_p'(endpoint_req_li_cast.y_cord);
-  assign endpoint_out_packet_li.x_cord     = x_cord_width_p'(endpoint_req_li_cast.x_cord);
-  assign endpoint_out_packet_li.payload = endpoint_req_li_cast.payload;
+  assign mc_req_lo_cast.reg_id       = 8'(endpoint_in_mask_lo);
 
   // endpoint response to manycore
   // -------------------------
@@ -224,8 +242,9 @@ module bsg_manycore_endpoint_to_fifos_aligned
     .returning_v_i(returning_v_li),
 
     .out_credits_o(out_credits_o),
-    .my_x_i(my_x_i),
-    .my_y_i(my_y_i)
+
+    .global_x_i(my_x_i),
+    .global_y_i(my_y_i)
   );
 
   // Assert if the endpoint doesn't respond to read and write requests

@@ -140,6 +140,12 @@ VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/dpi/bsg_nonsynth_dpi_manycore.v
 
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_test/bsg_nonsynth_dpi_cycle_counter.v
 
+VSOURCES += $(LIBRARIES_PATH)/platforms/dpi-verilator/hardware/bsg_manycore_aligned_pkg.v
+VSOURCES += $(LIBRARIES_PATH)/platforms/dpi-verilator/hardware/bsg_manycore_endpoint_to_fifos_aligned.v
+
+
+VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/dpi/bsg_nonsynth_dpi_manycore_tile.v
+
 ################################################################################
 # Top-level files
 ################################################################################
