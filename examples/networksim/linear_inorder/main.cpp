@@ -25,7 +25,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#define BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
 #include <bsg_manycore.h>
 #include <bsg_manycore_npa.h>
 #include <bsg_manycore_tile.h>
@@ -60,8 +59,8 @@ int main(int argc, char ** argv) {
         origin = hb_mc_config_get_origin_vcore(cfg);
         dim = hb_mc_config_get_dimension_vcore(cfg);
 
-        tg.x = dim.x;
-        tg.y = dim.y;
+        tg.x = 1;
+        tg.y = 1;
 
         max.x = origin.x + tg.x - 1;
         max.y = origin.y + tg.y - 1;
@@ -298,6 +297,11 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
         // python-esque yield statement.
         if(iter < limit){
                 *req_v_o = get_packet_from_eva<uint32_t>(req_o, base + ((iter*stride + offset) % nels) * sizeof(uint32_t));
+                /*
+                if((iter % 32) == 0)
+                        set_packet_rx_cost(req_o, 32);
+                        else*/
+                        set_packet_rx_cost(req_o, 1);
                 // You MUST increment before returning.
                 iter ++;
                 return;
@@ -305,7 +309,7 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
 
         // Wait until all requests have returned, so that the data is
         // accumulated. Do not send packets while we are fencing.
-        if(fence())
+        if(fence_read())
                 return;
 
         if(wait_at_barrier(1, tg_dim))

@@ -93,6 +93,7 @@ public:
                 stats["Fence Write"] = 0;
                 stats["Fence Read"] = 0;
                 stats["Fence"] = 0;
+                stats["Compute"] = 0;
                 stats["No RegIDs"] = 0;
                 stats["No Credits"] = 0;
                 stats["Not Ready"] = 0;
@@ -110,9 +111,9 @@ public:
                 // Create a set with available request IDs
                 for(reg_id_t id = 0; id < max_reg_id; ++id){
                         ids_available.insert(id);
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
                         reorder_buf[id] = {false, new hb_mc_response_packet_t};
-#endif
+                        // Set the default processing cost for each packet to 0.
+                        rx_cost[id] = 0;
                 }
 
                 bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s:"
@@ -162,11 +163,9 @@ public:
                 delete icache;
                 delete eva_map.eva_map_name;
                 delete mc.name;
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
                 for(reg_id_t id = 0; id < max_reg_id; ++id){
                         delete reorder_buf[id].second;
                 }
-#endif
                 tiles.erase(key());
                 if(cur_credits != max_credits)
                         bsg_pr_warn("Tile (X:%d,Y:%d) @ %lu -- %s: "
@@ -223,7 +222,6 @@ public:
                 // or there is data available.
 
                 // 1: Transmit one request per cycle (if the interface is ready)
-
                 if(network_req_credits_i == 0 && !finished & !frozen){
                         bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s:"
                                     "Endpoint out of credits.\n",
@@ -234,11 +232,12 @@ public:
                 if(!finished && !frozen && endpoint_req_ready_i && (network_req_credits_i != 0)){
                         send_request_internal(endpoint_req_v_o, endpoint_req_o);
                 }
+
                 if(!finished && !frozen && !endpoint_req_ready_i){
                         stats["Not Ready"] ++;
                 }
 
-                if(endpoint_req_ready_i && !endpoint_req_v_o){
+                if(endpoint_req_ready_i && !(*endpoint_req_v_o)){
                         stats["Not Sent"] ++;
                 }
 
@@ -276,25 +275,29 @@ public:
                                    "Got response packet: %s\n",
                                    me.x, me.y, get_cycle(), __func__,
                                    hb_mc_response_packet_to_string(network_rsp_i, sbuf, sizeof(sbuf)));
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
                         reg_id_t id = hb_mc_response_packet_get_load_id(network_rsp_i);
                         reorder_buf[id].first = true;
                         *reorder_buf[id].second = *network_rsp_i;
 
-#else
-                        receive_response_internal(network_rsp_i);
+#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_OOORDER
+                        // Act like it just got sent
+                        ids_order.push(id);
 #endif
                 }
 
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
                 reg_id_t next = ids_order.front();
-                if(reorder_buf[next].first){
+                // If packet available, cost is not zero, and a packet wasn't sent
+                if(reorder_buf[next].first && (rx_cost[next] != 0) && !(*endpoint_req_v_o)){
+                        rx_cost[next]--;
+                        stats["Compute"] ++;
+                }                
+                // If packet available, and cost is 0
+                if(reorder_buf[next].first && (rx_cost[next] == 0)){
                         network_rsp_i = reorder_buf[next].second;
                         receive_response_internal(network_rsp_i);
                         ids_order.pop();
                         reorder_buf[next].first = false;
                 }
-#endif
 
                 // Finally, Increment the counter
                 tick();
@@ -345,11 +348,14 @@ private:
         typedef uint8_t reg_id_t;
         std::set<reg_id_t> ids_available;
 
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
+        // Packet ordering datastructures. Define
+        // BSG_MANYCORE_DPI_TILE_PACKET_RX_OOORDER in the cpp file if
+        // you want packets to be recieved and processed in the order
+        // they were returned, not in the order they were sent
         std::queue<reg_id_t> ids_order;
         typedef std::pair<bool, hb_mc_response_packet_t*> resv_t;
         std::map<reg_id_t, resv_t> reorder_buf;
-#endif
+        std::map<reg_id_t, unsigned int> rx_cost;
 
         reg_id_t get_available_id(){
                 return *(ids_available.begin());
@@ -501,7 +507,7 @@ private:
 
                         ids_available.erase(id);
 
-#ifdef BSG_MANYCORE_DPI_TILE_PACKET_RX_INORDER
+#ifndef BSG_MANYCORE_DPI_TILE_PACKET_RX_OOORDER
                         ids_order.push(id);
 #endif
                 }
@@ -898,6 +904,24 @@ private:
                 }
         }
 
+        void set_packet_rx_cost(const hb_mc_request_packet_t *req, unsigned int cost){
+                hb_mc_packet_op_t op = static_cast<hb_mc_packet_op_t>(hb_mc_request_packet_get_op(req));
+                if(op != HB_MC_PACKET_OP_REMOTE_LOAD){
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Invalid Op. Only read packets can have a cost. Packet: %s\n",
+                                   me.x, me.y, get_cycle(), __func__,
+                                   hb_mc_request_packet_to_string(req, sbuf, sizeof(sbuf)));
+                        exit(1);
+                }
+                reg_id_t id = hb_mc_request_packet_get_load_id(req);
+                if(rx_cost[id] > 0){
+                        bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
+                                   "Packet RX cost has already been set.\n",
+                                   me.x, me.y, get_cycle(), __func__);
+                        exit(1);
+                }
+                rx_cost[id] = cost;
+        }
 
         // All of the get_packet functions produce a valid network
         // request packet. At the lowest level, users can specify all

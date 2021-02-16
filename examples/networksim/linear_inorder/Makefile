@@ -82,6 +82,9 @@ vcache_stall_detailed.png: $(TEST_NAME).log
 %_experiment.rpt: router_utilization.rpt
 	mv $< $@
 
+%_experiment: router_utilization.rpt vcache_stall_detailed.png
+	mkdir $@
+	mv *.png *.csv *.rpt *.log $@
 ###############################################################################
 # C_ARGS: Use this to pass arguments that you want to appear in argc/argv
 #
@@ -104,5 +107,5 @@ help:
 .PHONY: clean
 
 clean:
-	rm -rf *.o $(TEST_NAME) *.rpt vcache_stall_detailed.png vcache_key_detailed.png
+	rm -rf *.o $(TEST_NAME) *.rpt vcache_stall_detailed.png vcache_key_detailed.png *.csv
 
