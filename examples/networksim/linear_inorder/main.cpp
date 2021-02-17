@@ -59,8 +59,8 @@ int main(int argc, char ** argv) {
         origin = hb_mc_config_get_origin_vcore(cfg);
         dim = hb_mc_config_get_dimension_vcore(cfg);
 
-        tg.x = 1;
-        tg.y = 1;
+        tg.x = dim.x;
+        tg.y = dim.y;
 
         max.x = origin.x + tg.x - 1;
         max.y = origin.y + tg.y - 1;
@@ -296,12 +296,16 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
         // is called on every cycle. Returning is effectively a
         // python-esque yield statement.
         if(iter < limit){
+                // Every 32 loads, fence until all reads return.
+                if((iter % 32) == 0 && fence_read())
+                        return;
                 *req_v_o = get_packet_from_eva<uint32_t>(req_o, base + ((iter*stride + offset) % nels) * sizeof(uint32_t));
-                /*
-                if((iter % 32) == 0)
-                        set_packet_rx_cost(req_o, 32);
-                        else*/
-                        set_packet_rx_cost(req_o, 1);
+
+                // Make each response take 1 cycle to
+                // process. Responses are processed in order. This
+                // emulates a 32-load, 32-store instruction pattern.
+                set_packet_rx_cost(req_o, 1);
+
                 // You MUST increment before returning.
                 iter ++;
                 return;
@@ -320,7 +324,6 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
                 idx ++;
                 return;
         }
-        bsg_pr_info("Finish Cycle: %lu\n", get_cycle());
 
         // Send the finish packet, once
         *req_v_o = get_packet_finish(req_o);

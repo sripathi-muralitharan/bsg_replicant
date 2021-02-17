@@ -71,19 +71,18 @@ $(TEST_NAME).log: $(TEST_NAME)
 router_utilization.rpt: $(TEST_NAME).log
 	python3 ../router_parser.py
 
+router_utilization.png: router_utilization.rpt
+	pango-view  --font mono -qo $@ $<
+
 .PHONY: router_utilization.rpt vcache_stall_detailed.png
 
 vcache_stall_detailed.png: $(TEST_NAME).log
 	PYTHONPATH=$(BSG_MANYCORE_DIR)/software/py/vanilla_parser/.. python3 -m vanilla_parser --only vcache_stall_graph --trace vcache_operation_trace.csv --generate-key
 
-%_experiment.png: vcache_stall_detailed.png
-	mv $< $@
-
-%_experiment.rpt: router_utilization.rpt
-	mv $< $@
-
-%_experiment: router_utilization.rpt vcache_stall_detailed.png
+%_experiment: router_utilization.rpt vcache_stall_detailed.png router_utilization.png
 	mkdir $@
+	cp $(TEST_NAME).cpp $@
+	cp $(BSG_MACHINE_PATH)/Makefile.machine.include $@
 	mv *.png *.csv *.rpt *.log $@
 ###############################################################################
 # C_ARGS: Use this to pass arguments that you want to appear in argc/argv
