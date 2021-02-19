@@ -76,8 +76,6 @@ int main(int argc, char ** argv) {
         //   Number of iterations
         nels = 1024;
 
-        // Each tile will start at index: (pto * (x + y * dim.x)) % nels
-        pto = 0;
         stride = 1;
         niters = 1024;
 
