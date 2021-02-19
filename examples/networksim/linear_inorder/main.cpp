@@ -35,6 +35,7 @@
 #include <random>
 #include <limits>
 
+
 #ifdef VCS
 int vcs_main(int argc, char ** argv) {
 #else
@@ -49,7 +50,7 @@ int main(int argc, char ** argv) {
         hb_mc_npa_t npa;
         uint32_t write_data = 0, read_data = 0;
 
-        unsigned int nels, niters, pto, stride;
+        unsigned int nels, niters, stride, stripe;
 
         hb_mc_eva_t dram_eva;
         size_t sz = 0;
@@ -58,6 +59,8 @@ int main(int argc, char ** argv) {
         const hb_mc_config_t *cfg = hb_mc_manycore_get_config(mc);
         origin = hb_mc_config_get_origin_vcore(cfg);
         dim = hb_mc_config_get_dimension_vcore(cfg);
+
+        stripe = hb_mc_config_get_vcache_stripe_words(cfg);
 
         tg.x = dim.x;
         tg.y = dim.y;
@@ -101,8 +104,11 @@ int main(int argc, char ** argv) {
         hb_mc_idx_t idx = 0;
         for(hb_mc_idx_t y_i = origin.y; y_i <= max.y; ++y_i){
                 for(hb_mc_idx_t x_i = origin.x; x_i <= max.x; ++x_i){
+                        int offset;
+                        offset = (y_i-origin.y) >= 4 ? stripe * dim.x : 0;
+                        offset += stripe * (x_i - origin.x);
                         for(uint32_t j = 0; j < niters; ++j){
-                                expected[x_i][y_i] = expected[x_i][y_i] / data[(j * stride + pto * idx) % nels];
+                                expected[x_i][y_i] = expected[x_i][y_i] / data[(j * stride + offset) % nels];
                         }
                         idx ++;
                 }
@@ -136,7 +142,10 @@ int main(int argc, char ** argv) {
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
                         // Per-Tile Offset into buffer
-                        write_data = pto * idx;
+                        int offset;
+                        offset = (y_i - origin.y) >= 4 ? stripe * dim.x : 0;
+                        offset += stripe * (x_i - origin.x);
+                        write_data = offset;
                         npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 8;
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
@@ -155,14 +164,19 @@ int main(int argc, char ** argv) {
                         npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 20;
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
+                        // Phase Counter (for the tile)
+                        write_data = 0;
+                        npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 24;
+                        BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
+
                         // Tile Group X
                         write_data = tg.x;
-                        npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 24;
+                        npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 28;
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
                         // Tile Group Y
                         write_data = tg.y;
-                        npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 28;
+                        npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 32;
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
                         // Initial value / Final result
@@ -262,8 +276,6 @@ void BsgDpiTile::execute_request(const hb_mc_request_packet_t *req,
 // are shared between all instances of a class (unless the
 // templates are different)
 
-// Instead, store iteration variables in DMEM.
-int idx = 0; // Only used by origin
 void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
         uint32_t *dmem_p = reinterpret_cast<uint32_t *>(this->dmem);
         // The host writes these values before unfreezing the tile.
@@ -274,33 +286,44 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
         // iter is our iteration variable. It is set by the host.
         uint32_t &iter = dmem_p[4];
         uint32_t &limit = dmem_p[5];
-        hb_mc_coordinate_t tg_dim = {.x = dmem_p[6], .y = dmem_p[7]};
+        uint32_t &phase = dmem_p[6];
+        hb_mc_coordinate_t tg_dim = {.x = dmem_p[7], .y = dmem_p[8]};
 
+        // Wait for everyone to start
         if(wait_at_barrier(0, tg_dim))
                 return;
 
-        if(is_origin() && idx == 0){
-                *req_v_o = get_packet_stat_kernel_start(req_o);
-                idx ++;
-                bsg_pr_info("Start Cycle: %lu\n", get_cycle());
+
+        // Start stats for the vcache (but only send from origin)
+        if(phase == 0){
+                if(is_origin()){
+                        *req_v_o = get_packet_stat_kernel_start(req_o);
+                }
+                phase ++;
                 return;
         }
-        if(is_origin() && idx == 1){
-                if(fence()){
+
+        // Start stats for the tiles. Does not send a packet, but will
+        // print lines to dpi_stats.csv
+        if(phase == 1){
+                if(fence())
                         return;
-                }
-                idx ++;
+                get_packet_stat_tag_start(req_o, 0);
+                phase ++;
         }
+
+        if(wait_at_barrier(1, tg_dim))
+                return;
 
         // This if statement is effectively a loop, since the method
         // is called on every cycle. Returning is effectively a
         // python-esque yield statement.
         if(iter < limit){
                 // Every 32 loads, fence until all reads return.
-                if((iter % 32) == 0 && fence_read())
-                        return;
+                //if((iter % 32) == 0 && fence_read())
+                //        return;
                 *req_v_o = get_packet_from_eva<uint32_t>(req_o, base + ((iter*stride + offset) % nels) * sizeof(uint32_t));
-
+                
                 // Make each response take 1 cycle to
                 // process. Responses are processed in order. This
                 // emulates a 32-load, 32-store instruction pattern.
@@ -316,12 +339,20 @@ void BsgDpiTile::send_request(bool *req_v_o, hb_mc_request_packet_t *req_o){
         if(fence_read())
                 return;
 
-        if(wait_at_barrier(1, tg_dim))
+        // Cause stats to be printed and record finish time
+        if(phase == 2){
+                get_packet_stat_tag_end(req_o, 0);
+                phase ++;
+        }
+
+        if(wait_at_barrier(2, tg_dim))
                 return;
 
-        if(is_origin() && idx == 2){
-                *req_v_o = get_packet_stat_kernel_start(req_o);
-                idx ++;
+        if(phase == 3){
+                // Print the stats
+                if(is_origin())
+                        *req_v_o = get_packet_stat_kernel_end(req_o);
+                phase ++;
                 return;
         }
 

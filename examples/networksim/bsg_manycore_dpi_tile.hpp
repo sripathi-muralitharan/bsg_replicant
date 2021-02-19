@@ -83,9 +83,7 @@ public:
                 // Initial values
                 cur_credits(0),
                 tg_id(0),// Not currently set by the host
-                cycle(0),
-
-                statfile(filename, std::ofstream::out){
+                cycle(0){
 
                 // There's probably a better way to do this that
                 // provides a single source of truth for the keys of
@@ -93,11 +91,13 @@ public:
                 stats["Fence Write"] = 0;
                 stats["Fence Read"] = 0;
                 stats["Fence"] = 0;
-                stats["Compute"] = 0;
-                stats["No RegIDs"] = 0;
-                stats["No Credits"] = 0;
-                stats["Not Ready"] = 0;
-                stats["Not Sent"] = 0;
+                stats["Packet RX"] = 0;
+                stats["Packet TX"] = 0;
+                stats["Stall RegID"] = 0;
+                stats["Stall Barrier"] = 0;
+                stats["Stall Credit"] = 0;
+                stats["Stall !Ready"] = 0;
+                stats["Idle"] = 0;
 
                 stats_write_header();
 
@@ -222,23 +222,25 @@ public:
                 // or there is data available.
 
                 // 1: Transmit one request per cycle (if the interface is ready)
-                if(network_req_credits_i == 0 && !finished & !frozen){
+                if(!finished && !frozen && (network_req_credits_i == 0)){
                         bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s:"
                                     "Endpoint out of credits.\n",
                                    me.x, me.y, get_cycle(), __func__);
-                        stats["No Credits"] ++;
-
+                        stats["Stall Credit"] ++;
                 }
-                if(!finished && !frozen && endpoint_req_ready_i && (network_req_credits_i != 0)){
+
+                if(!finished && !frozen && (network_req_credits_i != 0) && endpoint_req_ready_i){
                         send_request_internal(endpoint_req_v_o, endpoint_req_o);
+                        if(*endpoint_req_v_o)
+                                stats["Packet TX"] ++;
                 }
 
                 if(!finished && !frozen && !endpoint_req_ready_i){
-                        stats["Not Ready"] ++;
+                        stats["Stall !Ready"] ++;
                 }
 
-                if(endpoint_req_ready_i && !(*endpoint_req_v_o)){
-                        stats["Not Sent"] ++;
+                if(!finished && !frozen && endpoint_req_ready_i && !(*endpoint_req_v_o)){
+                        stats["Idle"] ++;
                 }
 
                 // 2: Respond to an incoming request packet (one per cycle).
@@ -289,7 +291,7 @@ public:
                 // If packet available, cost is not zero, and a packet wasn't sent
                 if(reorder_buf[next].first && (rx_cost[next] != 0) && !(*endpoint_req_v_o)){
                         rx_cost[next]--;
-                        stats["Compute"] ++;
+                        stats["Packet RX"] ++;
                 }                
                 // If packet available, and cost is 0
                 if(reorder_buf[next].first && (rx_cost[next] == 0)){
@@ -328,9 +330,8 @@ private:
 
 
         // Statistics files
-
-        const std::string filename = "dpi_stats.csv";
-        std::ofstream statfile;
+        static std::ofstream statfile;
+        static std::string filename;// = "dpi_stats.csv";
 
 
         // Shared snprintf buffer
@@ -452,12 +453,18 @@ private:
                 } else if((my_cur_id == barrier_id) && is_origin() && my_barrier) {
                         cur_id.store(barrier_id);
                         // Check all TG subordinates
-                        return wait_all_done(tg, barrier_id);
+                        bool barrier = wait_all_done(tg, barrier_id);
+                        if(barrier)
+                                stats["Stall Barrier"] ++;
+                        return barrier;
                 } else if((my_cur_id == barrier_id)){
+                        if(my_barrier)
+                                stats["Stall Barrier"] ++;
                         return my_barrier;
                 } else if((my_cur_id == barrier_id - 1)){
                         barrier.store(true);
                         cur_id.store(barrier_id);
+                        stats["Stall Barrier"] ++;
                         return true;
                 }
                 bsg_pr_err("Tile (X:%d,Y:%d) @ %lu -- %s: "
@@ -475,7 +482,8 @@ private:
                 if(!ids_available.empty()){
                         send_request(req_v_o, req_o);
                 } else {
-                        stats["No RegIDs"] ++;
+                        stats["Stall RegID"] ++;
+
                         bsg_pr_dbg("Tile (X:%d,Y:%d) @ %lu -- %s: "
                                    "Out of request ids\n",
                                     me.x, me.y, get_cycle(), __func__);
@@ -890,11 +898,12 @@ private:
                         statfile << it->second;
                 }
                 statfile << std::endl;
+                statfile.flush();
         }
 
         void stats_write_header(){
                 if(statfile.tellp() == 0){
-                        statfile << "Cycle, Payload, X, Y";
+                        statfile << "Cycle,Payload,X,Y";
                         for (auto it = stats.begin(); it!=stats.end(); ++it){
                                 statfile << ",";
                                 statfile << it->first;
@@ -980,7 +989,7 @@ private:
         }
 
         bool get_packet_stat_kernel_start(hb_mc_request_packet_t *req){
-                return get_packet_stat(req, 0, true, false);
+                return get_packet_stat(req, 0, false, true);
         }
 
         bool get_packet_stat_kernel_end(hb_mc_request_packet_t *req){
@@ -1194,8 +1203,8 @@ private:
                 struct __attribute__ ((packed)) {
                         uint32_t tag : 4;
                         uint32_t tg_id : 14;
-                        hb_mc_idx_t y : 6;
                         hb_mc_idx_t x : 6;
+                        hb_mc_idx_t y : 6;
                         bool end : 1;
                         bool kernel : 1;
                 } fields;
@@ -1231,6 +1240,8 @@ private:
 // instantiation of static map.
 std::map<BsgDpiTile::key_t, BsgDpiTile*> BsgDpiTile::tiles;
 
+std::string BsgDpiTile::filename = "dpi_stats.csv";
+std::ofstream BsgDpiTile::statfile(BsgDpiTile::filename, std::ofstream::out);
 
 // DPI calls expected by Simulator
 extern "C"
