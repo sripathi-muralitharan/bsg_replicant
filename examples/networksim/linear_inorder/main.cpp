@@ -102,9 +102,9 @@ int main(int argc, char ** argv) {
         hb_mc_idx_t idx = 0;
         for(hb_mc_idx_t y_i = origin.y; y_i <= max.y; ++y_i){
                 for(hb_mc_idx_t x_i = origin.x; x_i <= max.x; ++x_i){
+                        unsigned int cache_idx = ((y_i-origin.y) << 2) + ((0x24924924 >> (2*(x_i-origin.x))) & 3);
                         int offset;
-                        offset = (y_i-origin.y) >= 4 ? stripe * dim.x : 0;
-                        offset += stripe * (x_i - origin.x);
+                        offset = stripe * cache_idx;
                         for(uint32_t j = 0; j < niters; ++j){
                                 expected[x_i][y_i] = expected[x_i][y_i] / data[(j * stride + offset) % nels];
                         }
@@ -140,9 +140,9 @@ int main(int argc, char ** argv) {
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
 
                         // Per-Tile Offset into buffer
+                        unsigned int cache_idx = ((y_i-origin.y) << 2) + ((0x24924924 >> (2*(x_i-origin.x))) & 3);
                         int offset;
-                        offset = (y_i - origin.y) >= 4 ? stripe * dim.x : 0;
-                        offset += stripe * (x_i - origin.x);
+                        offset = stripe * cache_idx;
                         write_data = offset;
                         npa.epa = HB_MC_TILE_EPA_DMEM_BASE + 8;
                         BSG_MANYCORE_CALL(mc, hb_mc_manycore_write_mem(mc, &npa, &write_data, sizeof(write_data)));
