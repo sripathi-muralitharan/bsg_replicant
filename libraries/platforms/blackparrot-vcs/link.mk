@@ -52,6 +52,10 @@ include $(LIBRARIES_PATH)/libraries.mk
 # VCS, but that's a low bar...
 include $(LIBRARIES_PATH)/platforms/aws-vcs/msg_config.mk
 
+# Defines for bp_mem
+VDEFINES += dram_pkg=bp_dramsim3_lpddr_2Gb_x16_pkg
+VDEFINES += den2048Mb+sg5+x16+FULL_MEM
+
 # VHEADERS must be compiled before VSOURCES.
 VLOGAN_SOURCES  += $(VHEADERS) $(VSOURCES) 
 VLOGAN_INCLUDES += $(foreach inc,$(VINCLUDES),+incdir+"$(inc)")
@@ -78,6 +82,7 @@ $(BSG_MACHINE_PATH)/$(BSG_PLATFORM)/vcs_simlibs/manycore_tb_top/AN.DB: $(BSG_MAC
 # libbsg_manycore_runtime will be compiled in $(BSG_PLATFORM_PATH)
 LDFLAGS        += -lbsg_manycore_runtime -lm
 LDFLAGS        += -L$(BSG_PLATFORM_PATH) -Wl,-rpath=$(BSG_PLATFORM_PATH)
+LDFLAGS        += -L$(BLACKPARROT_DIR)/external/lib -ldramsim3 -Wl,-rpath=$(BLACKPARROT_DIR)/external/lib
 
 VCS_LDFLAGS    += $(foreach def,$(LDFLAGS),-LDFLAGS "$(def)")
 VCS_VFLAGS     += -M -L -ntb_opts tb_timescale=1ps/1ps -lca -v2005
@@ -86,6 +91,7 @@ VCS_VFLAGS     += +warn=noLCA_FEATURES_ENABLED
 VCS_VFLAGS     += +warn=noMC-FCNAFTMI
 VCS_VFLAGS     += +lint=all,TFIPC-L,noSVA-UA,noSVA-NSVU,noVCDE,noSVA-AECASR
 VCS_VFLAGS     += -msg_config=$(BSG_PLATFORM_PATH)/msg_config
+VCS_VFLAGS     += +plusarg_save +nbf_file=prog.nbf
 
 # VCS Generates an executable file by linking the %.o file with the
 # the VCS work libraries for the design, and the runtime shared libraries

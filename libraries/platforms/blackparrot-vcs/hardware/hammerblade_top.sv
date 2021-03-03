@@ -6,6 +6,19 @@ module manycore_tb_top
   import bsg_bladerunner_pkg::*;
   import bsg_bladerunner_mem_cfg_pkg::*;
   import bsg_manycore_endpoint_to_fifos_pkg::*;
+  // BlackParrot packages
+  import bp_common_pkg::*;
+  import bp_fe_pkg::*;
+  import bp_be_pkg::*;
+  import bp_me_pkg::*;
+  #(// BlackParrot parameters
+    parameter bp_params_e bp_params_p = e_bp_bigblade_unicore_cfg
+   `declare_bp_proc_params(bp_params_p)
+   
+   `declare_bp_bedrock_mem_if_widths(paddr_width_p, dword_width_gp, lce_id_width_p, lce_assoc_p, uce)
+   `declare_bp_bedrock_mem_if_widths(paddr_width_p, word_width_gp, lce_id_width_p, lce_assoc_p, io)
+   `declare_bp_bedrock_mem_if_widths(paddr_width_p, word_width_gp, lce_id_width_p, lce_assoc_p, dram)
+   )
      ();
 
    // Uncomment this to enable VCD Dumping
@@ -191,28 +204,20 @@ module manycore_tb_top
    // --------------------------------------------------------------------------
    // BlackParrot
    // --------------------------------------------------------------------------
-   // TODO: Figure out this mess of parameter declaration....
-   import bp_common_pkg::*;
-   import bp_common_aviary_pkg::*;
-   import bp_fe_pkg::*;
-   import bp_be_pkg::*;
-   import bp_me_pkg::*;
-   parameter dword_width_p = 64;
-   //`declare_bp_bedrock_mem_if(paddr_width_p, cce_block_width_p, lce_id_width_p, lce_assoc_p, uce);
-   localparam uce_mem_payload_width_lp = `bp_bedrock_mem_payload_width(4, 8);
-   localparam dram_mem_payload_width_lp = `bp_bedrock_mem_payload_width(4, 8);
-   `declare_bp_bedrock_mem_if(40, 64, 4, 8, uce);
-   `declare_bp_bedrock_mem_if(40, 32, 4, 8, dram);
-   bp_bedrock_uce_mem_msg_s io_cmd_lo;
+   `declare_bp_bedrock_mem_if(paddr_width_p, dword_width_gp, lce_id_width_p, lce_assoc_p, uce);
+   `declare_bp_bedrock_mem_if(paddr_width_p, word_width_gp, lce_id_width_p, lce_assoc_p, io);
+   `declare_bp_bedrock_mem_if(paddr_width_p, word_width_gp, lce_id_width_p, lce_assoc_p, dram);
+   
+   bp_bedrock_io_mem_msg_s io_cmd_lo;
    logic io_cmd_v_lo, io_cmd_ready_li;
 
-   bp_bedrock_uce_mem_msg_s io_resp_li;
+   bp_bedrock_io_mem_msg_s io_resp_li;
    logic io_resp_v_li, io_resp_yumi_lo;
 
-   bp_bedrock_uce_mem_msg_s io_cmd_li;
+   bp_bedrock_io_mem_msg_s io_cmd_li;
    logic io_cmd_v_li, io_cmd_yumi_lo;
 
-   bp_bedrock_uce_mem_msg_s io_resp_lo;
+   bp_bedrock_io_mem_msg_s io_resp_lo;
    logic io_resp_v_lo, io_resp_ready_li;
 
    bp_bedrock_uce_mem_msg_s mem_cmd_lo;
@@ -220,8 +225,9 @@ module manycore_tb_top
 
    bp_bedrock_uce_mem_msg_s mem_resp_li;
    logic mem_resp_v_li, mem_resp_yumi_lo;
+
    bp_unicore_lite
-    #(.bp_params_p(e_bp_unicore_no_l2_cfg))
+    #(.bp_params_p(bp_params_p))
     blackparrot
      (.clk_i(core_clk)
       ,.reset_i(core_reset)
@@ -251,10 +257,16 @@ module manycore_tb_top
       ,.mem_resp_yumi_o(mem_resp_yumi_lo)
       );
 
-  bp_cce_to_mc_mmio
-   #(.bp_params_p(e_bp_unicore_no_l2_cfg)
+  localparam mc_max_outstanding_p = 8;
+
+  bp_cce_to_mc_bridge
+   #(.bp_params_p(bp_params_p)
+     ,.host_enable_p(1)
+     ,.mc_max_outstanding_p(mc_max_outstanding_p)
      ,.mc_x_cord_width_p(x_cord_width_p)
+     ,.mc_x_subcord_width_p()
      ,.mc_y_cord_width_p(y_cord_width_p)
+     ,.mc_y_subcord_width_p()
      ,.mc_data_width_p(data_width_p)
      ,.mc_addr_width_p(addr_width_p)
      ,.mc_vcache_block_size_in_words_p(block_size_in_words_p)
@@ -290,75 +302,113 @@ module manycore_tb_top
      ,.my_y_i(host_y_cord_li)
      );
 
-  bp_bedrock_dram_mem_msg_s [1:0] dram_cmd_lo;
-  logic [1:0] dram_cmd_v_lo, dram_cmd_ready_li;
+  // TODO: Replace with links to manycore DRAM later
+  // bp_bedrock_dram_mem_msg_s [1:0] dram_cmd_lo;
+  // logic [1:0] dram_cmd_v_lo, dram_cmd_ready_li;
 
-  bp_bedrock_dram_mem_msg_s [1:0] dram_resp_li;
-  logic [1:0] dram_resp_v_li, dram_resp_yumi_lo;
-  bp_cce_splitter
-   #(.bp_params_p(e_bp_unicore_no_l2_cfg))
-   dram_splitter
-    (.clk_i(core_clk)
-     ,.reset_i(core_reset)
+  // bp_bedrock_dram_mem_msg_s [1:0] dram_resp_li;
+  // logic [1:0] dram_resp_v_li, dram_resp_yumi_lo;
 
-     ,.io_cmd_i(mem_cmd_lo)
-     ,.io_cmd_v_i(mem_cmd_v_lo)
-     ,.io_cmd_ready_o(mem_cmd_ready_li)
+  // bp_cce_splitter
+  //  #(.bp_params_p(bp_params_p))
+  //  dram_splitter
+  //   (.clk_i(core_clk)
+  //    ,.reset_i(core_reset)
 
-     ,.io_resp_o(mem_resp_li)
-     ,.io_resp_v_o(mem_resp_v_li)
-     ,.io_resp_yumi_i(mem_resp_yumi_lo)
+  //    ,.io_cmd_i(mem_cmd_lo)
+  //    ,.io_cmd_v_i(mem_cmd_v_lo)
+  //    ,.io_cmd_ready_o(mem_cmd_ready_li)
 
-     ,.io_cmd_o(dram_cmd_lo)
-     ,.io_cmd_v_o(dram_cmd_v_lo)
-     ,.io_cmd_ready_i(dram_cmd_ready_li)
+  //    ,.io_resp_o(mem_resp_li)
+  //    ,.io_resp_v_o(mem_resp_v_li)
+  //    ,.io_resp_yumi_i(mem_resp_yumi_lo)
 
-     ,.io_resp_i(dram_resp_li)
-     ,.io_resp_v_i(dram_resp_v_li)
-     ,.io_resp_yumi_o(dram_resp_yumi_lo)
-     );
+  //    ,.io_cmd_o(dram_cmd_lo)
+  //    ,.io_cmd_v_o(dram_cmd_v_lo)
+  //    ,.io_cmd_ready_i(dram_cmd_ready_li)
 
-  for (genvar i = 0; i < 2; i++)
-    begin : d
-      bp_cce_to_mc_mmio
-       #(.bp_params_p(e_bp_unicore_no_l2_cfg)
-         ,.mc_x_cord_width_p(x_cord_width_p)
-         ,.mc_y_cord_width_p(y_cord_width_p)
-         ,.mc_data_width_p(data_width_p)
-         ,.mc_addr_width_p(addr_width_p)
-         ,.mc_vcache_block_size_in_words_p(block_size_in_words_p)
-         ,.mc_vcache_size_p(vcache_size_p)
-         ,.mc_vcache_sets_p(sets_p)
-         ,.mc_num_tiles_x_p(num_tiles_x_p)
-         ,.mc_num_tiles_y_p(num_tiles_y_p)
-         )
-       dram_link
-        (.clk_i(core_clk)
-         ,.reset_i(core_reset)
+  //    ,.io_resp_i(dram_resp_li)
+  //    ,.io_resp_v_i(dram_resp_v_li)
+  //    ,.io_resp_yumi_o(dram_resp_yumi_lo)
+  //    );
 
-         ,.io_cmd_i(dram_cmd_lo[i])
-         ,.io_cmd_v_i(dram_cmd_v_lo[i])
-         ,.io_cmd_ready_o(dram_cmd_ready_li[i])
+  // for (genvar i = 0; i < 2; i++)
+  //   begin : d
+  //     bp_cce_to_mc_bridge
+  //      #(.bp_params_p(bp_params_p)
+  //        ,.host_enable_p(0)
+  //        ,.mc_max_outstanding_p()
+  //        ,.mc_x_cord_width_p(x_cord_width_p)
+  //        ,.mc_y_cord_width_p(y_cord_width_p)
+  //        ,.mc_data_width_p(data_width_p)
+  //        ,.mc_addr_width_p(addr_width_p)
+  //        ,.mc_vcache_block_size_in_words_p(block_size_in_words_p)
+  //        ,.mc_vcache_size_p(vcache_size_p)
+  //        ,.mc_vcache_sets_p(sets_p)
+  //        ,.mc_num_tiles_x_p(num_tiles_x_p)
+  //        ,.mc_num_tiles_y_p(num_tiles_y_p)
+  //        )
+  //      dram_link
+  //       (.clk_i(core_clk)
+  //        ,.reset_i(core_reset)
 
-         ,.io_resp_o(dram_resp_li[i])
-         ,.io_resp_v_o(dram_resp_v_li[i])
-         ,.io_resp_yumi_i(dram_resp_yumi_lo[i])
+  //        ,.io_cmd_i(dram_cmd_lo[i])
+  //        ,.io_cmd_v_i(dram_cmd_v_lo[i])
+  //        ,.io_cmd_ready_o(dram_cmd_ready_li[i])
 
-         ,.io_cmd_o()
-         ,.io_cmd_v_o()
-         ,.io_cmd_yumi_i('0)
+  //        ,.io_resp_o(dram_resp_li[i])
+  //        ,.io_resp_v_o(dram_resp_v_li[i])
+  //        ,.io_resp_yumi_i(dram_resp_yumi_lo[i])
 
-         ,.io_resp_i('0)
-         ,.io_resp_v_i('0)
-         ,.io_resp_ready_o()
+  //        ,.io_cmd_o()
+  //        ,.io_cmd_v_o()
+  //        ,.io_cmd_yumi_i('0)
 
-         ,.link_sif_i(dram_link_sif_li[i])
-         ,.link_sif_o(dram_link_sif_lo[i])
+  //        ,.io_resp_i('0)
+  //        ,.io_resp_v_i('0)
+  //        ,.io_resp_ready_o()
 
-         ,.my_x_i('0)
-         ,.my_y_i(2+i)
-         );
-    end
+  //        ,.link_sif_i(dram_link_sif_li[i])
+  //        ,.link_sif_o(dram_link_sif_lo[i])
+
+  //        ,.my_x_i('0)
+  //        ,.my_y_i(2+i)
+  //        );
+  //   end
+
+  localparam [paddr_width_p-1:0] mem_offset_lp = dram_base_addr_gp;
+  localparam mem_cap_in_bytes_lp = 2**25;
+  localparam mem_load_lp = 1;
+  localparam mem_file_lp = "prog.mem"; 
+  localparam use_ddr_lp = 0;
+  localparam use_dramsim3_lp = 0;
+  localparam dram_fixed_latency_lp = 15;
+
+  bp_mem
+   #(.bp_params_p(bp_params_p)
+    ,.mem_offset_p(mem_offset_lp)
+    ,.mem_cap_in_bytes_p(mem_cap_in_bytes_lp)
+    ,.mem_load_p(mem_load_lp)
+    ,.mem_file_p(mem_file_lp)
+    ,.use_ddr_p(use_ddr_lp)
+    ,.use_dramsim3_p(use_dramsim3_lp)
+    ,.dram_fixed_latency_p(dram_fixed_latency_lp)
+    )
+    bp_dram
+    (.clk_i(core_clk_i)
+    ,.reset_i(core_reset_i)
+
+    ,.mem_cmd_i(mem_cmd_v_lo)
+    ,.mem_cmd_v_i(mem_cmd_v_lo)
+    ,.mem_cmd_ready_o(mem_cmd_ready_li)
+
+    ,.mem_resp_o(mem_resp_li)
+    ,.mem_resp_v_o(mem_resp_v_li)
+    ,.mem_resp_yumi_i(mem_resp_yumi_lo)
+
+    ,.dram_clk_i(core_clk_i)
+    ,.dram_reset_i(core_reset_i)
+    );
 
   bsg_nonsynth_manycore_io_complex
    #(.addr_width_p(addr_width_p)

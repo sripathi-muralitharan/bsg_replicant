@@ -136,10 +136,6 @@ BSG_DESIGN_TOP := manycore_tb_top
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_spmd_loader.v
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_monitor.v
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_io_complex.v
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/hammerblade_top.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_to_mc_fifo.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_to_mc_mmio.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_splitter.sv
 
 VINCLUDES += $(BSG_PLATFORM_PATH)/hardware
 VINCLUDES += $(BSG_PLATFORM_PATH)

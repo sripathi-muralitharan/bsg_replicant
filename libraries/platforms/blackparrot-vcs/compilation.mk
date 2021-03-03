@@ -27,5 +27,44 @@
 
 # This Makefile fragment defines rules/flags for compiling C/C++ files
 
-# TODO: Need to replace with both x86 and RISC-V compilation, for now.
 include $(LIBRARIES_PATH)/platforms/dpi-vcs/compilation.mk
+
+# RISC-V toolchain
+RV64_CC = $(BLACKPARROT_DIR)/external/bin/riscv64-unknown-linux-gnu-gcc
+RV64_CXX = $(BLACKPARROT_DIR)/external/bin/riscv64-unknown-linux-gnu-g++
+RV64_OBJDUMP = $(BLACKPARROT_DIR)/external/bin/riscv64-unknown-linux-gnu-objdump
+RV64_OBJCOPY = $(BLACKPARROT_DIR)/external/bin/riscv64-unknown-linux-gnu-objcopy
+
+# BlackParrot NBF loader
+# Usage: python /path/to/nbf/nbf.py --config --ncpus=1 --mem=prog.mem > <output>.nbf
+BP_NBF = $(BLACKPARROT_DIR)/bp_common/software/py/nbf.py
+PYTHON = python
+
+# each regression target needs to build its .o from a .c and .h of the
+# same name
+%.o: %.c %.h
+	# x86 target to satisfy VCS during compile time
+	# TODO: Remove dummy test later
+	$(CC) -c -o $@ test_bsg_scalar_print.c $(INCLUDES) $(CFLAGS) $(CDEFINES) -DBSG_TEST_NAME=$(patsubst %.c,%,$<)
+	$(RV64_CC) -o $*.rv64o $< $(INCLUDES) $(CFLAGS) $(CDEFINES) -DBSG_TEST_NAME=$(patsubst %.c,%,$<) \
+			-march=rv64ima -mabi=lp64 -mcmodel=medany \
+			-static -nostartfiles -L$(BLACKPARROT_DIR)/bp_common/test/lib/ -lperch -Triscv.ld -UVCS -fPIC
+	$(RV64_OBJDUMP) -d -t $*.rv64o > prog.dump
+	$(RV64_OBJCOPY) -O verilog $*.rv64o prog.mem
+	# Fixme: NBF commands hardcoded in manycore NBF
+	# $(PYTHON) $(BP_NBF) --config --ncpus=1 --mem=prog.mem > prog.nbf
+
+# ... or a .cpp and .hpp of the same name
+%.o: %.cpp %.hpp
+	# x86 target to satisfy VCS during compile time
+	$(CXX) -c -o $@ $< $(INCLUDES) $(CXXFLAGS) $(CXXDEFINES) -DBSG_TEST_NAME=$(patsubst %.cpp,%,$<)
+	$(RV64_CXX) -c -o $*.rv64o $< $(INCLUDES) $(CXXFLAGS) $(CXXDEFINES) -DBSG_TEST_NAME=$(patsubst %.cpp,%,$<) 
+	$(RV64_OBJDUMP) -d -t $*.rv64o > prog.dump
+	$(RV64_OBJCOPY) -O verilog $*.rv64o prog.mem
+	# Fixme: NBF commands hardcoded in manycore NBF
+	# $(PYTHON) $(BP_NBF) --config --ncpus=1 --mem=prog.mem > prog.nbf
+
+.PHONY: platform.compilation.clean
+platform.compilation.clean:
+	rm -rf *.o
+	rm -f prog.* *.rv64o

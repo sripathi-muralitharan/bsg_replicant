@@ -102,6 +102,7 @@ module bp_cce_to_mc_bridge
   bp_bedrock_cce_mem_msg_s io_cmd_li;
   bsg_manycore_global_addr_s io_cmd_eva_li;
   logic io_cmd_v_li, io_cmd_yumi_lo;
+
   bsg_fifo_1r1w_small
    #(.width_p($bits(bp_bedrock_cce_mem_msg_s)), .els_p(mc_max_outstanding_p))
    header_fifo
@@ -349,7 +350,7 @@ module bp_cce_to_mc_bridge
             end
           default: // e_bedrock_mem_uc_wr, e_bedrock_mem_wr:
             begin
-              mmio_out_packet_li.op_v2                                    = store_op;
+              mmio_out_packet_li.op_v2                                    = e_remote_store;
               mmio_out_packet_li.payload.data                             = store_payload;
               mmio_out_packet_li.reg_id                                   = store_reg_id;
             end

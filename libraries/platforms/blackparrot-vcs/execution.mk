@@ -25,8 +25,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
-SIM_ARGS += +nbf_file=prog.nbf
+SIM_ARGS += +nbf_file=$(SPMD_SRC_PATH)/$(TEST_NAME:test_%=%)/main.nbf
 
 # Reuse the execution rules from aws-vcs
 include $(LIBRARIES_PATH)/platforms/aws-vcs/execution.mk
