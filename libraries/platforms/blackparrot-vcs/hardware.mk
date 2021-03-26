@@ -53,8 +53,30 @@ include $(BSG_F1_DIR)/hdk.mk
 # Simulation Sources
 ################################################################################
 
-VSOURCES += $(BASEJUMP_STL_DIR)/bsg_test/bsg_nonsynth_dpi_clock_gen.v
+# Clock and reset modules
+VSOURCES += $(BASEJUMP_STL_DIR)/bsg_test/bsg_nonsynth_clock_gen.v
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_test/bsg_nonsynth_reset_gen.v
+
+# BSG TAG setup for BlackParrot and HammerBlade
+POD_TRACE_GEN_PY = $(BSG_MANYCORE_DIR)/testbenches/py/pod_trace_gen.py
+$(BSG_MACHINE_PATH)/bsg_tag_boot_rom.tr: $(BSG_MACHINE_PATH)/Makefile.machine.include
+	env python2 $(POD_TRACE_GEN_PY) $(BSG_MACHINE_PODS_X) $(BSG_MACHINE_PODS_Y) $(BSG_MACHINE_NOC_COORD_X_WIDTH) > $@
+
+BP_TRACE_GEN_PY = $(BSG_PLATFORM_PATH)/py/blackparrot_trace_gen.py
+$(BSG_MACHINE_PATH)/trace.tr: $(BSG_MACHINE_PATH)/Makefile.machine.include
+	env python2 $(BP_TRACE_GEN_PY) > $@
+
+ASCII_TO_ROM_PY = $(BASEJUMP_STL_DIR)/bsg_mem/bsg_ascii_to_rom.py
+$(BSG_MACHINE_PATH)/bsg_tag_boot_rom.v: $(BSG_MACHINE_PATH)/bsg_tag_boot_rom.tr $(BSG_MACHINE_PATH)/trace.tr
+	env python2 $(ASCII_TO_ROM_PY) $< bsg_tag_boot_rom > $@
+
+VSOURCES += $(BSG_MACHINE_PATH)/bsg_tag_boot_rom.v
+VSOURCES += $(BASEJUMP_STL_DIR)/bsg_test/bsg_nonsynth_test_rom.v
+VSOURCES += $(BASEJUMP_STL_DIR)/bsg_fsb/bsg_fsb_node_trace_replay.v
+VSOURCES += $(BASEJUMP_STL_DIR)/bsg_tag/bsg_tag_trace_replay.v
+VSOURCES += $(BASEJUMP_STL_DIR)/bsg_tag/bsg_tag_master.v
+VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_tag_master.v
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/bp_nonsynth_tag_master.v
 
 # DMA Interface
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_mem/bsg_nonsynth_mem_1r1w_sync_dma.v
@@ -87,6 +109,11 @@ VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_manycore_link_to_crossb
 # Infinite Memory
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_mem_infinite.v
 
+# Manycore I/O Complex
+VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_io_complex.v
+VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_spmd_loader.v
+VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_monitor.v
+
 # Profiling
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_manycore_profile_pkg.v
 VSOURCES += $(BASEJUMP_STL_DIR)/bsg_misc/bsg_cycle_counter.v
@@ -117,10 +144,6 @@ VSOURCES += $(LIBRARIES_PATH)/platforms/aws-fpga/hardware/bsg_manycore_endpoint_
 ################################################################################
 # Blackparrot-Specific Sources
 ################################################################################
-
-# Replace dpi_clock_gen with the normal clock generator (see
-# dpi_top.sv for a description of the issue)
-VSOURCES := $(subst bsg_nonsynth_dpi_clock_gen,bsg_nonsynth_clock_gen,$(VSOURCES))
 
 # TODO: Extract from BlackParrot flist
 VINCLUDES += $(BASEJUMP_STL_DIR)/bsg_dataflow
@@ -398,12 +421,10 @@ VSOURCES +=$(BLACKPARROT_DIR)/bp_me/test/common/bp_mem_to_dram.sv
 VSOURCES +=$(BLACKPARROT_DIR)/bp_me/test/common/bp_dramsim3_pkg.sv
 VSOURCES +=$(BLACKPARROT_DIR)/bp_me/test/common/bp_mem.sv
 
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_unicore_lite.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_to_mc_bridge.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_serializer.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/bp_cce_splitter.sv
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/hammerparrot_pkg.v
-VSOURCES += $(LIBRARIES_PATH)/platforms/blackparrot-vcs/hardware/hammerparrot_top.v
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/bp_unicore_lite.sv
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/bp_cce_to_mc_bridge.sv
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/bp_cce_serializer.sv
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/bp_cce_splitter.sv
 
 ################################################################################
 # Top-level files
@@ -414,6 +435,7 @@ BSG_DESIGN_TOP := hammerparrot_tb_top
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_spmd_loader.v
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_monitor.v
 VSOURCES += $(BSG_MANYCORE_DIR)/testbenches/common/v/bsg_nonsynth_manycore_io_complex.v
+VSOURCES += $(BSG_PLATFORM_PATH)/hardware/hammerparrot_top.v
 
 VINCLUDES += $(BSG_PLATFORM_PATH)/hardware
 VINCLUDES += $(BSG_PLATFORM_PATH)
@@ -422,4 +444,4 @@ VINCLUDES += $(BSG_PLATFORM_PATH)
 hardware.clean: machine.hardware.clean
 
 machine.hardware.clean:
-	rm -rf $(BSG_MACHINE_PATH)/bsg_tag_boot_rom.tr $(BSG_MACHINE_PATH)/bsg_tag_boot_rom.v
+	rm -f $(BSG_MACHINE_PATH)/trace.tr

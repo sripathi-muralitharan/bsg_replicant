@@ -3,14 +3,13 @@
 `include "bp_me_defines.svh"
 
 module bsg_blackparrot_unicore_tile
- import hammerparrot_pkg::*;
  import bsg_mesh_router_pkg::*;
  import bsg_noc_pkg::*;
  import bsg_tag_pkg::*;
  import bsg_manycore_pkg::*;
  import bp_common_pkg::*;
  import bp_me_pkg::*;
- #(localparam bp_params_e bp_params_p = bp_cfg_gp
+ #(localparam bp_params_e bp_params_p = e_bp_bigblade_unicore_cfg_p
    `declare_bp_proc_params(bp_params_p)
 
    , localparam io_mem_payload_width_lp   = `bp_bedrock_mem_payload_width(lce_id_width_p, lce_assoc_p)
